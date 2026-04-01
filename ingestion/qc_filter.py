@@ -69,17 +69,6 @@ def apply_qc(df: pd.DataFrame, dataset: xr.Dataset) -> pd.DataFrame:
     if df.empty:
         return df.copy()
 
-    if "TEMP_QC" in dataset.variables:
-        temp_qc_raw = np.asarray(dataset["TEMP_QC"].values)
-        print(f"[QC DIAG] TEMP_QC dtype: {temp_qc_raw.dtype}")
-        print(f"[QC DIAG] TEMP_QC first 10 raw values: {temp_qc_raw.reshape(-1)[:10]}")
-        if temp_qc_raw.size > 0:
-            print(f"[QC DIAG] TEMP_QC sample value type: {type(temp_qc_raw.reshape(-1)[0])}")
-        else:
-            print("[QC DIAG] TEMP_QC sample value type: <empty>")
-    else:
-        print("[QC DIAG] TEMP_QC missing in dataset.")
-
     if "PRES" in dataset.variables:
         pres_2d = _normalize_numeric(_to_2d(np.asarray(dataset["PRES"].values)))
     elif "PRES_ADJUSTED" in dataset.variables:
@@ -106,7 +95,13 @@ def apply_qc(df: pd.DataFrame, dataset: xr.Dataset) -> pd.DataFrame:
 
     temp_qc = _flatten_qc(dataset, "TEMP_QC", n_rows_raw)
     psal_qc = _flatten_qc(dataset, "PSAL_QC", n_rows_raw)
-    qc_good_mask_raw = (temp_qc == "1") & (psal_qc == "1")
+    temp_qc = np.array([str(x).strip().replace("b'", "").replace("'", "") for x in temp_qc], dtype=object)
+    psal_qc = np.array([str(x).strip().replace("b'", "").replace("'", "") for x in psal_qc], dtype=object)
+    VALID_QC_FLAGS = {"1", "2"}
+    qc_good_mask_raw = (
+        np.isin(temp_qc, list(VALID_QC_FLAGS)) &
+        np.isin(psal_qc, list(VALID_QC_FLAGS))
+    )
 
     # Mirror parser dropna logic so QC flags align with parser output rows.
     temp_flat = temp_2d.reshape(-1)
@@ -141,12 +136,13 @@ def apply_qc(df: pd.DataFrame, dataset: xr.Dataset) -> pd.DataFrame:
 
     qc_df = df.loc[aligned_qc_mask].copy()
 
+    has_salinity = bool(("PSAL" in dataset.variables) or ("PSAL_ADJUSTED" in dataset.variables))
     in_range_mask = (
         (qc_df["temp_c"] >= -3.0)
         & (qc_df["temp_c"] <= 40.0)
-        & (qc_df["salinity"] >= 20.0)
-        & (qc_df["salinity"] <= 42.0)
         & (qc_df["depth_m"] > 0.0)
     )
+    if has_salinity:
+        in_range_mask = in_range_mask & (qc_df["salinity"] >= 20.0) & (qc_df["salinity"] <= 42.0)
 
     return qc_df.loc[in_range_mask].reset_index(drop=True)
