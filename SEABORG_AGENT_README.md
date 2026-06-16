@@ -1,4 +1,4 @@
-# SeaBorg — AI-Powered Ocean Data Chatbot
+`# SeaBorg — AI-Powered Ocean Data Chatbot
 ## Complete Agent Build Specification
 
 > **AGENT INSTRUCTIONS:** Read this entire document before writing any code.

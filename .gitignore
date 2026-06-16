@@ -10,3 +10,5 @@ data/exports/
 .DS_Store
 .vscode/
 *.log
+visualiser.html
+pytest_output.txt
