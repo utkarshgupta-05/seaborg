@@ -25,7 +25,7 @@
 10. [Phase 3 — LLM Integration](#phase-3--llm-integration)
 11. [Phase 4 — FastAPI Backend](#phase-4--fastapi-backend)
 12. [Phase 5 — Visualisation Engine](#phase-5--visualisation-engine)
-13. [Phase 6 — Streamlit Frontend](#phase-6--streamlit-frontend)
+13. [Phase 6 — React Frontend](#phase-6--react-frontend)
 14. [Phase 7 — Tests](#phase-7--tests)
 15. [Phase 8 — Deployment](#phase-8--deployment)
 16. [Data Flow Contracts](#16-data-flow-contracts)
@@ -65,12 +65,12 @@ data/raw/*.nc
 ### Runtime Pipeline (every user message)
 
 ```
-User message (Streamlit)
+User message (React frontend)
     → POST /api/chat (FastAPI)
     → rag/retriever.py             (embed query → FAISS search → top-5 Parquet rows)
     → llm/query_engine.py          (rows + question → GPT-4 prompt → answer + SQL)
     → api/routes/chat.py           (detect chart_type → build ChatResponse JSON)
-    → Streamlit frontend           (render answer + Plotly chart side by side)
+    → React frontend              (render answer + Plotly chart side by side)
 ```
 
 **Key architectural constraint:** The LLM never queries the database directly.
@@ -134,12 +134,27 @@ seaborg/
 │   └── exporter.py
 │
 ├── frontend/
-│   ├── app.py
-│   └── components/
-│       ├── __init__.py
-│       ├── chat_panel.py
-│       ├── chart_panel.py
-│       └── sidebar.py
+│   ├── package.json
+│   ├── vite.config.ts
+│   ├── tsconfig.json
+│   ├── index.html
+│   ├── .env
+│   ├── .env.example
+│   └── src/
+│       ├── main.tsx
+│       ├── App.tsx
+│       ├── api/
+│       │   └── client.ts
+│       ├── components/
+│       │   ├── ChatPanel.tsx
+│       │   ├── ChartPanel.tsx
+│       │   └── Sidebar.tsx
+│       ├── hooks/
+│       │   └── useChat.ts
+│       ├── types/
+│       │   └── api.ts
+│       └── styles/
+│           └── globals.css
 │
 ├── tests/
 │   ├── test_ingestion.py
@@ -180,7 +195,7 @@ seaborg/
 | Backend | `FastAPI` + `uvicorn` | ASGI server |
 | Schemas | `pydantic` v2 | All request/response models |
 | Charts | `plotly` | All three chart types; no matplotlib |
-| Frontend | `streamlit` | Pure Python; no React/HTML/JS files |
+| Frontend | `react` + `vite` + `typescript` | Modern SPA; frontend talks to FastAPI via `API_URL` |
 | Testing | `pytest` + `httpx` | `httpx` for async API tests |
 
 ---
@@ -853,140 +868,273 @@ print("All charts: OK")
 
 ---
 
-## Phase 6 — Streamlit Frontend
+## Phase 6 — React Frontend
 
-**Goal:** A two-column chat + chart interface runnable with `streamlit run frontend/app.py`.
+**Goal:** A two-column chat + chart interface built with React and runnable as a standalone frontend app that talks to the FastAPI backend.
 
 ---
 
-### `frontend/app.py`
+### Frontend project layout
 
-**Single job:** Assemble layout, manage session state, call the API.
+Create the React app inside `frontend/` using a modern toolchain such as Vite.
 
-**Page config:**
-```python
-st.set_page_config(page_title="SeaBorg", page_icon="🌊", layout="wide")
 ```
-
-**Session state keys to initialise if absent:**
-```python
-st.session_state.messages      # list of {"role": "user"|"assistant", "content": str}
-st.session_state.last_response # last ChatResponse dict or None
-st.session_state.filters       # dict from sidebar.render_sidebar()
-```
-
-**Layout:**
-```python
-sidebar_filters = sidebar.render_sidebar()
-col_chat, col_chart = st.columns(2)
-with col_chat:
-    user_input = chat_panel.render_chat()
-with col_chart:
-    chart_panel.render_chart()
-```
-
-**On user input (non-None):**
-```python
-# 1. Append user message to history
-# 2. Show spinner: "Searching ARGO data..."
-# 3. POST to {API_URL}/api/chat with {"message": user_input}
-# 4. On success: append assistant answer to history, store full response
-# 5. On connection error: append error message to history (no traceback shown to user)
-# 6. st.rerun()
+frontend/
+├── package.json
+├── vite.config.ts
+├── tsconfig.json
+├── index.html
+├── .env
+├── .env.example
+└── src/
+    ├── main.tsx
+    ├── App.tsx
+    ├── api/
+    │   └── client.ts
+    ├── components/
+    │   ├── ChatPanel.tsx
+    │   ├── ChartPanel.tsx
+    │   └── Sidebar.tsx
+    ├── hooks/
+    │   └── useChat.ts
+    ├── types/
+    │   └── api.ts
+    └── styles/
+        └── globals.css
 ```
 
 ---
 
-### `frontend/components/chat_panel.py`
+### Environment variables
 
-**Single job:** Render message history and chat input; return user input string or None.
+#### `frontend/.env` (never committed)
 
-```python
-def render_chat() -> str | None:
-    """
-    Iterates st.session_state.messages.
-    user role → st.chat_message("user")  with avatar "🧑"
-    assistant role → st.chat_message("assistant") with avatar "🌊"
-    Input box via st.chat_input("Ask about ocean data...")
-    Returns the submitted string or None.
-    """
+```env
+VITE_API_URL=http://localhost:8000
+```
+
+#### `frontend/.env.example` (committed to git)
+
+Same keys with placeholder values and a one-line comment per key explaining its purpose.
+
+---
+
+### `frontend/src/App.tsx`
+
+**Single job:** Assemble the main layout, manage chat state, call the API, and render the chart panel.
+
+**Required behaviour:**
+- Render a responsive two-column layout
+- Left column: chat history, chat input, and sidebar filters
+- Right column: chart area and response metadata
+- Keep message history in React state
+- Call `POST {VITE_API_URL}/api/chat` when the user submits a message
+- On success, store the assistant reply and the full `ChatResponse`
+- On connection or request error, show a human-readable error message
+- Never show a raw traceback or unhandled exception in the UI
+
+**Suggested top-level state:**
+```ts
+messages: Array<{ role: "user" | "assistant"; content: string }>
+lastResponse: ChatResponse | null
+filters: SidebarFilters
+isLoading: boolean
+error: string | null
 ```
 
 ---
 
-### `frontend/components/chart_panel.py`
+### `frontend/src/components/ChatPanel.tsx`
 
-**Single job:** Read `st.session_state.last_response` and render the appropriate chart.
+**Single job:** Render the message history and a chat input box.
 
-**Logic:**
-```python
-def render_chart() -> None:
-    resp = st.session_state.get("last_response")
-    if resp is None:
-        st.info("Ask a question to see a chart here.")
-        return
+**Required behaviour:**
+- Display user messages and assistant messages with clear visual separation
+- Provide a submit input for new questions
+- Disable submission while a request is in flight
+- Accept callbacks for sending a message and clearing an error
 
-    df = pd.read_parquet(os.getenv("PARQUET_PATH"))
-    float_ids = resp["float_ids"]
-    chart_df = df[df["float_id"].isin(float_ids)]
-
-    chart_type = resp["chart_type"]
-    if chart_type == "map":
-        fig = plot_float_map(chart_df)
-    elif chart_type == "profile":
-        fig = plot_depth_profile(chart_df, float_ids[0])
-    elif chart_type == "timeseries":
-        fig = plot_timeseries(chart_df, float_ids[0])
-    else:
-        st.info("No visualisation for this query.")
-        return
-
-    st.plotly_chart(fig, use_container_width=True)
-
-    with st.expander("SQL used"):
-        st.code(resp["sql_used"], language="sql")
-
-    csv = chart_df.to_csv(index=False).encode()
-    st.download_button("⬇ Download CSV", csv, "seaborg_export.csv", "text/csv")
+**Public interface:**
+```ts
+type ChatPanelProps = {
+  messages: Array<{ role: "user" | "assistant"; content: string }>;
+  onSend: (message: string) => void;
+  isLoading: boolean;
+};
 ```
 
 ---
 
-### `frontend/components/sidebar.py`
+### `frontend/src/components/ChartPanel.tsx`
 
-**Single job:** Render filter controls; return selected values as a dict.
+**Single job:** Render the appropriate chart for the most recent API response.
+
+**Required behaviour:**
+- Read the last `ChatResponse` from props or state
+- Use the `float_ids` returned by the backend to select rows from the local data cache or from a dedicated data endpoint
+- Render the Plotly chart for `map`, `profile`, or `timeseries`
+- Show the SQL used in an expandable section
+- Provide a CSV download button for the filtered rows
+- Show an info state when `chart_type` is `"none"`
+
+**Public interface:**
+```ts
+type ChartPanelProps = {
+  response: ChatResponse | null;
+  data: ArgoRow[];
+};
+```
+
+---
+
+### `frontend/src/components/Sidebar.tsx`
+
+**Single job:** Render filter controls and return selected values.
 
 **Required controls:**
 
 | Control | Widget | Options / Range |
 |---|---|---|
-| Ocean regions | `st.multiselect` | Indian Ocean, Atlantic, Pacific, Southern, Arctic |
-| Date range | `st.date_input` (range) | Default: full available range from DB |
-| Depth range | `st.slider` (range) | 0 to 2000 m |
-| Variable | `st.selectbox` | Temperature, Salinity, Oxygen |
+| Ocean regions | multi-select | Indian Ocean, Atlantic, Pacific, Southern, Arctic |
+| Date range | date range picker | Default: full available range from backend or cached data |
+| Depth range | range slider | 0 to 2000 m |
+| Variable | select | Temperature, Salinity, Oxygen |
 
 **Return type:**
-```python
-{
-    "regions":    list[str],
-    "start_date": datetime.date,
-    "end_date":   datetime.date,
-    "depth_min":  int,
-    "depth_max":  int,
-    "variable":   str   # "temp_c" | "salinity" | "oxygen"
+```ts
+type SidebarFilters = {
+  regions: string[];
+  startDate: string;
+  endDate: string;
+  depthMin: number;
+  depthMax: number;
+  variable: "temp_c" | "salinity" | "oxygen";
+};
+```
+
+---
+
+### `frontend/src/api/client.ts`
+
+**Single job:** Provide a thin wrapper around `fetch` for the backend API.
+
+**Required functions:**
+```ts
+function postChat(message: string): Promise<ChatResponse>;
+function getFloats(): Promise<string[]>;
+function getFloatData(params: FloatDataRequest): Promise<ArgoRow[]>;
+function exportData(request: ExportRequest): Promise<Blob>;
+```
+
+**Rules:**
+- Read the backend base URL from `import.meta.env.VITE_API_URL`
+- Use JSON request/response handling
+- Throw user-friendly errors for non-2xx responses
+- Keep all API calls in this layer; UI components must not call `fetch` directly
+
+---
+
+### `frontend/src/types/api.ts`
+
+**Single job:** Define frontend TypeScript types that mirror the FastAPI schemas.
+
+**Required types:**
+```ts
+export type ChartType = "map" | "profile" | "timeseries" | "none";
+
+export interface ChatRequest {
+  message: string;
+  session_id?: string | null;
+}
+
+export interface ChatResponse {
+  answer: string;
+  chart_type: ChartType;
+  float_ids: string[];
+  sql_used: string;
+  confidence: number;
+}
+
+export interface FloatDataRequest {
+  float_id: string;
+  start_date?: string | null;
+  end_date?: string | null;
+  depth_min?: number | null;
+  depth_max?: number | null;
+}
+
+export interface ExportRequest {
+  float_ids: string[];
+  format: "csv" | "netcdf";
+  start_date?: string | null;
+  end_date?: string | null;
+}
+
+export interface ArgoRow {
+  id: number;
+  float_id: string;
+  date: string;
+  latitude: number;
+  longitude: number;
+  depth_m: number;
+  temp_c: number;
+  salinity: number;
+  oxygen?: number | null;
+  created_at: string;
 }
 ```
+
+---
+
+### `frontend/src/main.tsx`
+
+**Single job:** Mount the React application.
+
+**Required behaviour:**
+- Render `<App />` into the root element
+- Import global styles
+- Keep setup minimal and production-ready
+
+---
+
+### `frontend/src/styles/globals.css`
+
+**Single job:** Define base styling for the application.
+
+**Required behaviour:**
+- Responsive two-column layout on desktop
+- Stacked layout on smaller screens
+- Clear spacing, readable typography, and accessible contrast
+- No dependency on legacy Python web-framework styles or assets
+
+---
+
+### Run and build commands
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+The app must open in the browser and communicate with the FastAPI backend at `VITE_API_URL`.
+
+---
 
 ### ✅ Verification
 
 ```bash
-streamlit run frontend/app.py
+cd frontend
+npm run dev
 # Must open browser page with two columns (chat left, chart right) and sidebar
-# Type: "Show me temperature data in the Indian Ocean"
-# Expected: assistant reply appears + map chart renders on right
-```
 
----
+# Type: "Show me temperature data in the Indian Ocean"
+# Expected:
+# - assistant reply appears
+# - chart renders on the right
+# - SQL is visible in an expandable section
+# - CSV download button is available
+```
 
 ## Phase 7 — Tests
 
@@ -1050,13 +1198,14 @@ Write tests that verify:
 | Environment vars | Copy all keys from `.env`; set `ENVIRONMENT=production` |
 | Database | Provision a Render managed PostgreSQL; use its connection string as `DATABASE_URL` |
 
-### Frontend — Streamlit Community Cloud
+### Frontend — Vercel or Netlify
 
 | Field | Value |
 |---|---|
 | Repository | Your GitHub repo |
-| Main file | `frontend/app.py` |
-| Secrets | `OPENAI_API_KEY`, `DATABASE_URL`, `API_URL` (set to Render backend's public HTTPS URL) |
+| Build command | `cd frontend && npm install && npm run build` |
+| Output directory | `frontend/dist` |
+| Environment vars | `VITE_API_URL` (set to Render backend's public HTTPS URL) |
 
 ### Pre-deployment Checklist
 
@@ -1065,7 +1214,7 @@ Write tests that verify:
 - [ ] `requirements.txt` is up to date (`pip freeze > requirements.txt`)
 - [ ] FAISS index + Parquet file are either committed or `build_index.py` runs on first boot
 - [ ] `api/main.py` CORS `allow_origins` restricted to production frontend URL
-- [ ] All env vars set in Render and Streamlit dashboards
+- [ ] All env vars set in Render and frontend hosting dashboard
 - [ ] `POST /api/chat` returns valid response on the live URL
 
 ### ✅ Final Verification
@@ -1077,7 +1226,7 @@ python scripts/run_ingestion.py        → completes without errors
 python scripts/build_index.py         → prints vector count > 0
 uvicorn api.main:app --reload         → starts, prints "SeaBorg API ready."
 curl POST /api/chat {real question}   → returns valid ChatResponse JSON
-streamlit run frontend/app.py         → working chatbot + live charts in browser
+cd frontend && npm run dev         → working chatbot + live charts in browser
 pytest tests/ -v                      → all tests pass, zero failures
 https://{your-deployed-url}           → accessible in browser over HTTPS
 ```
@@ -1150,7 +1299,7 @@ These rules apply to every line of code in the project. No exceptions.
 - The embedding model is loaded lazily on first use. Never on import.
 
 ### Error handling
-- The Streamlit frontend must never show a Python traceback to the user. Catch exceptions and display human-readable messages.
+- The React frontend must never show a Python traceback to the user. Catch exceptions and display human-readable messages.
 
 ### Build discipline
 - Verify each phase passes its ✅ Verification check before starting the next phase.

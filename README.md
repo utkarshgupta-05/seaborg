@@ -21,16 +21,17 @@
 6. [Phase 2 — RAG Pipeline & Vector Database](#6-phase-2--rag-pipeline--vector-database)
 7. [Phase 3 — FastAPI Backend](#7-phase-3--fastapi-backend)
 8. [Phase 4 — Visualisation Engine](#8-phase-4--visualisation-engine)
-9. [Phase 5 — Streamlit Frontend](#9-phase-5--streamlit-frontend)
+9. [Phase 5 — React Frontend](#9-phase-5--react-frontend)
 10. [Phase 6 — Testing & Deployment](#10-phase-6--testing--deployment)
 11. [Agent Build Instructions](#11-agent-build-instructions)
-
----
 
 ## 1. Project Overview
 
 SeaBorg is an AI-powered conversational web app that makes ARGO float oceanographic data
 accessible to researchers, students, and policymakers through natural language queries.
+
+The system uses a FastAPI backend, a React + Vite frontend, a Groq-hosted LLM, and a RAG
+pipeline grounded in real ARGO measurements stored in PostgreSQL and Parquet.
 
 **What ARGO data is:** ARGO floats are robotic ocean sensors that sink and rise in the sea,
 recording temperature, salinity, and pressure at different depths. The data is stored in
@@ -43,8 +44,6 @@ NetCDF files — a multi-dimensional scientific format.
 - Allows export of results as CSV or NetCDF
 
 **Business model:** Open-source core, freemium for advanced analytics and enterprise support.
-
----
 
 ## 2. Folder Structure
 
@@ -86,11 +85,12 @@ seaborg/
 │   ├── __init__.py
 │   ├── main.py                   # FastAPI app entry point
 │   ├── models.py                 # Pydantic request/response schemas
-│   ├── tools.py                  # MCP tool definitions
+│   ├── tools.py                  # Tool definitions for function calling
 │   └── routes/
+│       ├── __init__.py
 │       ├── chat.py               # POST /chat endpoint
-│       ├── data.py               # GET /floats, /profile endpoints
-│       └── export.py             # GET /export endpoint
+│       ├── data.py               # GET /floats, /float/{id} endpoints
+│       └── export.py             # POST /export endpoint
 │
 ├── visualisation/                # PHASE 4
 │   ├── __init__.py
@@ -100,11 +100,26 @@ seaborg/
 │   └── exporter.py               # CSV, PNG, HTML export helpers
 │
 ├── frontend/                     # PHASE 5
-│   ├── app.py                    # Main Streamlit entry point
-│   └── components/
-│       ├── chat_panel.py         # Chat messages UI component
-│       ├── chart_panel.py        # Dynamic chart display component
-│       └── sidebar.py            # Filters and settings sidebar
+│   ├── package.json
+│   ├── vite.config.js
+│   ├── index.html
+│   ├── .env.example
+│   └── src/
+│       ├── main.jsx
+│       ├── App.jsx
+│       ├── api/
+│       │   └── client.js
+│       ├── components/
+│       │   ├── ChatPanel.jsx
+│       │   ├── ChartPanel.jsx
+│       │   ├── Sidebar.jsx
+│       │   └── MessageBubble.jsx
+│       ├── pages/
+│       │   └── Dashboard.jsx
+│       ├── hooks/
+│       │   └── useChat.js
+│       └── styles/
+│           └── globals.css
 │
 ├── tests/                        # PHASE 6
 │   ├── test_ingestion.py
@@ -131,74 +146,27 @@ seaborg/
 
 Create all folders at once:
 ```bash
-mkdir -p seaborg/{data/{raw,processed,exports},ingestion,rag,llm,api/routes,visualisation,frontend/components,tests,notebooks,scripts,indexes,models}
-touch seaborg/ingestion/__init__.py seaborg/rag/__init__.py seaborg/llm/__init__.py seaborg/api/__init__.py seaborg/api/routes/__init__.py seaborg/visualisation/__init__.py seaborg/frontend/__init__.py
+mkdir -p seaborg/{data/{raw,processed,exports},ingestion,rag,llm,api/routes,visualisation,frontend/src/{api,components,pages,hooks,styles},tests,notebooks,scripts,indexes,models}
+touch seaborg/ingestion/__init__.py seaborg/rag/__init__.py seaborg/llm/__init__.py seaborg/api/__init__.py seaborg/api/routes/__init__.py seaborg/visualisation/__init__.py
 ```
-
----
 
 ## 3. Tech Stack
 
-| Layer | Tool / Library | Purpose |
+| Category | Library / Tool | Notes |
 |---|---|---|
-| Data parsing | `xarray`, `netCDF4` | Read ARGO NetCDF files |
-| Data frames | `pandas`, `numpy` | Manipulate and clean data |
-| Storage (structured) | `PostgreSQL` | SQL-queryable rows per depth reading |
-| Storage (analytical) | `pyarrow` (Parquet) | Fast columnar reads for embeddings |
-| DB interface | `SQLAlchemy`, `psycopg2` | Python ↔ PostgreSQL |
-| Embeddings | `sentence-transformers` | Convert text summaries to vectors |
-| Vector search | `faiss-cpu` | Fast similarity search |
-| Alt vector DB | `chromadb` | Simpler FAISS alternative |
-| LLM | `openai` / `huggingface_hub` | GPT-4, Qwen, or LLaMA |
-| Agent tools | MCP protocol | Let LLM call Python functions |
-| Backend API | `fastapi`, `uvicorn` | REST API server |
-| Validation | `pydantic` | Request/response schemas |
-| Maps | `plotly`, `folium` | Interactive geospatial charts |
-| UI framework | `streamlit` | Python-first web app |
-| Testing | `pytest`, `httpx` | Unit and integration tests |
-| Deployment | Render / Railway | Free cloud hosting |
-
-### requirements.txt
-```
-# Data ingestion
-xarray==2024.2.0
-netCDF4==1.7.1
-pandas==2.2.1
-numpy==1.26.4
-pyarrow==15.0.2
-
-# Database
-sqlalchemy==2.0.29
-psycopg2-binary==2.9.9
-
-# RAG & embeddings
-sentence-transformers==2.7.0
-faiss-cpu==1.8.0
-chromadb==0.5.0
-
-# LLM
-openai==1.30.1
-langchain==0.2.1
-
-# Backend
-fastapi==0.111.0
-uvicorn==0.29.0
-pydantic==2.7.1
-
-# Visualisation
-plotly==5.22.0
-folium==0.16.0
-
-# Frontend
-streamlit==1.35.0
-requests==2.32.3
-
-# Testing
-pytest==8.2.0
-httpx==0.27.0
-```
-
----
+| NetCDF parsing | `xarray`, `netCDF4` | Open `.nc` files |
+| Tabular data | `pandas`, `numpy` | All DataFrame ops |
+| Parquet I/O | `pyarrow` | Read/write Parquet |
+| Database | `PostgreSQL` + `SQLAlchemy` + `psycopg2-binary` | ORM layer |
+| Embeddings | `sentence-transformers` model `all-MiniLM-L6-v2` | 384-dim, local, no GPU |
+| Vector search | `faiss-cpu` | Keep the implementation FAISS-first; do not introduce an alternate vector store unless the project explicitly requires it |
+| LLM client | `groq` Python library | Groq-hosted chat completions |
+| Backend | `FastAPI` + `uvicorn` | ASGI server |
+| Schemas | `pydantic` v2 | All request/response models |
+| Charts | `plotly` | All three chart types; no matplotlib |
+| Frontend | `React` + `Vite` | Browser UI for chat and charts |
+| Testing | `pytest` + `httpx` | `httpx` for async API tests |
+| Ocean data | `argopy` | Helpful ARGO data access utilities |
 
 ## 4. Environment Setup
 
@@ -210,7 +178,14 @@ venv\Scripts\activate           # Windows
 pip install -r requirements.txt
 ```
 
-### Step 2 — PostgreSQL
+### Step 2 — Node.js frontend environment
+Install Node.js 18+ and then set up the React app:
+```bash
+cd frontend
+npm install
+```
+
+### Step 3 — PostgreSQL
 ```bash
 # Mac
 brew install postgresql@14
@@ -225,27 +200,39 @@ sudo -u postgres createdb seaborg
 # Windows: download installer from https://www.postgresql.org/download/
 ```
 
-### Step 3 — .env file
+### Step 4 — .env files
 
 Create `.env` in the project root (never commit this):
-```
+```env
 DATABASE_URL=postgresql://user:password@localhost/seaborg
-OPENAI_API_KEY=sk-...
-HUGGINGFACE_TOKEN=hf_...
+GROQ_API_KEY=gsk-...
+GROQ_MODEL=llama-3.3-70b-versatile
 ENVIRONMENT=development
+FAISS_INDEX_PATH=indexes/argo_index.faiss
+PARQUET_PATH=data/processed/argo_profiles.parquet
+API_URL=http://localhost:8000
+```
+
+Create `frontend/.env.local` for the React app:
+```env
+VITE_API_URL=http://localhost:8000
 ```
 
 Create `.env.example` to commit:
-```
+```env
 DATABASE_URL=postgresql://user:password@localhost/seaborg
-OPENAI_API_KEY=your_key_here
-HUGGINGFACE_TOKEN=your_token_here
+GROQ_API_KEY=your_key_here
+GROQ_MODEL=llama-3.3-70b-versatile
 ENVIRONMENT=development
+FAISS_INDEX_PATH=indexes/argo_index.faiss
+PARQUET_PATH=data/processed/argo_profiles.parquet
+API_URL=http://localhost:8000
 ```
 
 Add to `.gitignore`:
-```
+```text
 .env
+frontend/.env.local
 venv/
 __pycache__/
 *.pyc
@@ -253,9 +240,10 @@ indexes/
 models/
 data/raw/
 data/processed/
+data/exports/
+node_modules/
+frontend/dist/
 ```
-
----
 
 ## 5. Phase 1 — Data Ingestion & ETL
 
@@ -547,12 +535,13 @@ def build_prompt(question: str, context_rows) -> str:
 
 ### llm/query_engine.py
 ```python
-import openai
+from groq import Groq
 import os
 from llm.prompts import build_prompt
 from rag.retriever import retrieve
 
-openai.api_key = os.getenv("OPENAI_API_KEY")
+client = Groq(api_key=os.getenv("GROQ_API_KEY"))
+MODEL = os.getenv("GROQ_MODEL", os.getenv("LLM_MODEL", "llama-3.3-70b-versatile"))
 
 def answer_query(question: str, context_rows=None) -> tuple[str, str]:
     if context_rows is None:
@@ -561,8 +550,8 @@ def answer_query(question: str, context_rows=None) -> tuple[str, str]:
     prompt = build_prompt(question, context_rows)
     sql_used = generate_sql(question)   # from nl_to_sql.py
 
-    response = openai.chat.completions.create(
-        model="gpt-4",
+    response = client.chat.completions.create(
+        model=MODEL,
         messages=[{"role": "user", "content": prompt}],
         temperature=0.2,
     )
@@ -577,8 +566,8 @@ depth_m, temp_c, salinity, oxygen).
 Question: {question}
 Return ONLY the SQL, no explanation."""
 
-    response = openai.chat.completions.create(
-        model="gpt-4",
+    response = client.chat.completions.create(
+        model=MODEL,
         messages=[{"role": "user", "content": sql_prompt}],
         temperature=0,
     )
@@ -619,102 +608,102 @@ and receives a structured JSON response with the answer, chart type, and float I
 
 ---
 
-### api/models.py
+### `llm/prompts.py`
+
+**Single job:** Define all prompt templates as string constants. No logic here.
+
+**Required templates:**
+
 ```python
-from pydantic import BaseModel
-from typing import Optional
+CHAT_PROMPT = """
+You are SeaBorg, an expert ocean data analyst. Answer the user's question using
+ONLY the data records provided below. Be specific, cite float IDs and dates.
+If the data does not support the question, say so clearly.
 
-class ChatRequest(BaseModel):
-    message: str
-    session_id: Optional[str] = None
+Context records:
+{context}
 
-class ChatResponse(BaseModel):
-    answer: str
-    chart_type: str        # "map" | "profile" | "timeseries" | "none"
-    float_ids: list[str]
-    sql_used: str
-    confidence: float
+Question: {question}
+
+Answer:
+"""
+
+SQL_PROMPT = """
+Convert the following question into a valid PostgreSQL SELECT query for the
+table `argo_profiles` with columns:
+id, float_id, date, latitude, longitude, depth_m, temp_c, salinity, oxygen, created_at.
+
+Return ONLY the SQL query. No explanation. No markdown. No semicolon at the end.
+
+Question: {question}
+"""
+```
+
+**Required function:**
+```python
+def build_prompt(question: str, context_rows: pd.DataFrame) -> str:
+    """
+    Formats context_rows as a bullet list and fills CHAT_PROMPT.
+    Each bullet: "• Float {float_id} | {date} | {depth_m}m | {temp_c}°C | {salinity} PSU"
+    """
 ```
 
 ---
 
-### api/routes/chat.py
+### `llm/query_engine.py`
+
+**Single job:** Run the full RAG + LLM call; return answer and generated SQL.
+
+**Rules:**
+- Read model name from env vars `GROQ_MODEL` or `LLM_MODEL`, default `"llama-3.3-70b-versatile"`.
+- Use the `groq` Python library for all LLM calls.
+- Use temperature `0.2` or lower for factual reproducibility.
+
+**Public interface:**
 ```python
-from fastapi import APIRouter
-from api.models import ChatRequest, ChatResponse
+def answer_query(question: str, context_rows: pd.DataFrame) -> tuple[str, str]:
+    """
+    Returns (answer_text, sql_string).
+    Builds prompt via prompts.build_prompt(), calls Groq, returns response content.
+    Also calls nl_to_sql.generate_sql(question) to populate sql_string.
+    """
+```
+
+---
+
+### `llm/nl_to_sql.py`
+
+**Single job:** Translate a natural language question to a safe SQL query and execute it.
+
+**CRITICAL — forbidden SQL keywords (case-insensitive):**
+`DROP`, `DELETE`, `UPDATE`, `INSERT`, `ALTER`, `TRUNCATE`, `GRANT`
+
+If any forbidden keyword appears in the generated SQL: return `(None, "Unsafe SQL rejected")` without executing.
+
+**Public interface:**
+```python
+def generate_sql(question: str) -> str:
+    """Sends SQL_PROMPT to Groq. Returns raw SQL string (may be unsafe — validate before use)."""
+
+def safe_sql_query(sql: str, engine: Engine) -> tuple[pd.DataFrame | None, str | None]:
+    """
+    Validates sql against forbidden keywords.
+    If safe: executes via SQLAlchemy, returns (DataFrame, None).
+    If unsafe: returns (None, error_message).
+    """
+```
+
+### ✅ Verification
+
+```python
+from rag.retriever import load_index, retrieve
 from llm.query_engine import answer_query
-from rag.retriever import retrieve
-
-router = APIRouter()
-
-@router.post("/chat", response_model=ChatResponse)
-async def chat(req: ChatRequest):
-    results   = retrieve(req.message)
-    answer, sql = answer_query(req.message, results)
-    chart_type  = detect_chart_type(req.message)
-    float_ids   = results["float_id"].unique().tolist()
-
-    return ChatResponse(
-        answer=answer,
-        chart_type=chart_type,
-        float_ids=float_ids,
-        sql_used=sql,
-        confidence=0.9,
-    )
-
-def detect_chart_type(msg: str) -> str:
-    msg = msg.lower()
-    if any(w in msg for w in ["map", "where", "location", "region"]):
-        return "map"
-    if any(w in msg for w in ["depth", "profile", "pressure", "meter"]):
-        return "profile"
-    if any(w in msg for w in ["trend", "over time", "monthly", "year"]):
-        return "timeseries"
-    return "none"
+load_index()
+rows = retrieve("what is the average temperature at 200m depth?")
+answer, sql = answer_query("what is the average temperature at 200m depth?", rows)
+print(answer)   # must be a non-empty string referencing specific float data
+print(sql)      # must be a SELECT statement
 ```
-
----
-
-### api/main.py
-```python
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-from api.routes import chat, data, export
-from rag.retriever import load_index
-
-app = FastAPI(title="SeaBorg API", version="1.0.0")
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-@app.on_event("startup")
-async def startup():
-    load_index()
-    print("SeaBorg API ready.")
-
-app.include_router(chat.router,   prefix="/api")
-app.include_router(data.router,   prefix="/api")
-app.include_router(export.router, prefix="/api")
-```
-
-Start the server:
-```bash
-uvicorn api.main:app --reload --port 8000
-# Visit http://localhost:8000/docs for interactive API docs
-```
-
-Test with curl:
-```bash
-curl -X POST http://localhost:8000/api/chat \
-  -H "Content-Type: application/json" \
-  -d '{"message": "temperature at 500m depth Indian Ocean"}'
-```
-
----
 
 ## 8. Phase 4 — Visualisation Engine
 
@@ -813,172 +802,259 @@ def export_chart_png(fig, path: str = "data/exports/chart.png"):
 
 ---
 
-## 9. Phase 5 — Streamlit Frontend
+## 9. Phase 5 — React Frontend
 
-**Goal:** A two-column web app — chat on the left, live charts on the right.
+**Goal:** A two-column React web app — chat on the left, live charts on the right.
 
-**Deliverable:** `streamlit run frontend/app.py` opens a working chatbot in the browser.
+**Deliverable:** `npm run dev` opens a working chatbot in the browser.
 
 ---
 
-### frontend/app.py
-```python
-import streamlit as st
-import requests
-import pandas as pd
-from visualisation.map_chart import plot_float_map
-from visualisation.profile_chart import plot_depth_profile
-from visualisation.timeseries_chart import plot_timeseries
+### `frontend/package.json`
 
-st.set_page_config(page_title="SeaBorg", layout="wide", page_icon="🌊")
-st.title("SeaBorg — Ocean Data Chatbot")
-
-API_URL = "http://localhost:8000/api/chat"
-PARQUET  = "data/processed/argo_profiles.parquet"
-
-if "messages" not in st.session_state:
-    st.session_state.messages = []
-if "last_response" not in st.session_state:
-    st.session_state.last_response = None
-
-col_chat, col_chart = st.columns([1, 1])
-
-with col_chat:
-    for msg in st.session_state.messages:
-        with st.chat_message(msg["role"]):
-            st.write(msg["content"])
-
-    user_input = st.chat_input("Ask about ocean data...")
-
-    if user_input:
-        st.session_state.messages.append({"role": "user", "content": user_input})
-
-        with st.spinner("Searching ARGO data..."):
-            try:
-                resp = requests.post(API_URL, json={"message": user_input}).json()
-            except Exception as e:
-                resp = {"answer": f"Error: {e}", "chart_type": "none", "float_ids": []}
-
-        st.session_state.messages.append({"role": "assistant", "content": resp["answer"]})
-        st.session_state.last_response = resp
-        st.rerun()
-
-with col_chart:
-    st.subheader("Visualisation")
-    r = st.session_state.last_response
-
-    if r:
-        df = pd.read_parquet(PARQUET)
-
-        if r["chart_type"] == "map":
-            st.plotly_chart(plot_float_map(df), use_container_width=True)
-
-        elif r["chart_type"] == "profile" and r["float_ids"]:
-            st.plotly_chart(
-                plot_depth_profile(df, r["float_ids"][0]),
-                use_container_width=True,
-            )
-
-        elif r["chart_type"] == "timeseries" and r["float_ids"]:
-            st.plotly_chart(
-                plot_timeseries(df, r["float_ids"][0]),
-                use_container_width=True,
-            )
-
-        st.download_button(
-            label="Download results as CSV",
-            data=df.to_csv(index=False),
-            file_name="argo_results.csv",
-            mime="text/csv",
-        )
-
-    else:
-        st.info("Ask a question on the left to see a chart here.")
+**Core dependencies:**
+```json
+{
+  "dependencies": {
+    "axios": "^1.x",
+    "plotly.js": "^2.x",
+    "react-plotly.js": "^2.x",
+    "react-router-dom": "^6.x"
+  }
+}
 ```
 
-Run it:
+**Recommended dev dependencies:**
+```json
+{
+  "devDependencies": {
+    "tailwindcss": "^3.x",
+    "postcss": "^8.x",
+    "autoprefixer": "^10.x"
+  }
+}
+```
+
+---
+
+### `frontend/src/api/client.js`
+
+**Single job:** Create the API client used by all frontend components.
+
+```javascript
+import axios from "axios";
+
+const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
+
+export const api = axios.create({
+  baseURL: `${API_BASE_URL}/api`,
+  headers: { "Content-Type": "application/json" },
+});
+```
+
+---
+
+### `frontend/src/components/ChatPanel.jsx`
+
+**Single job:** Render message history and chat input; return user input handling via props/hooks.
+
+**Behaviour:**
+- Use a modern chat UI with user and assistant message bubbles
+- Keep conversation history in React state or a custom hook
+- Submit new prompts to the backend through `POST /api/chat`
+- Show a loading spinner while waiting for the response
+- Never expose raw stack traces to the user
+
+---
+
+### `frontend/src/components/ChartPanel.jsx`
+
+**Single job:** Read the latest chat response and render the appropriate Plotly chart.
+
+**Behaviour:**
+- Fetch data from the backend or use the returned float IDs to filter a local copy of the Parquet data
+- Render `map`, `profile`, or `timeseries` charts using Plotly
+- Display the SQL used in an expandable code block
+- Provide a CSV download button for the current filtered dataset
+
+---
+
+### `frontend/src/components/Sidebar.jsx`
+
+**Single job:** Render filter controls and return selected values to the dashboard.
+
+**Recommended controls:**
+
+| Control | Widget | Options / Range |
+|---|---|---|
+| Ocean regions | multi-select | Indian Ocean, Atlantic, Pacific, Southern, Arctic |
+| Date range | date picker | Default: full available range |
+| Depth range | slider | 0 to 2000 m |
+| Variable | select | Temperature, Salinity, Oxygen |
+
+---
+
+### `frontend/src/pages/Dashboard.jsx`
+
+**Single job:** Assemble the overall layout.
+
+```jsx
+// Layout idea:
+// sidebar on the left
+// chat panel center/left
+// chart panel right
+```
+
+### `frontend/src/App.jsx`
+
+**Single job:** Set up routing and top-level providers if needed.
+
+---
+
+### React frontend runtime rules
+
+- Use `VITE_API_URL` to call the backend.
+- Keep UI responsive for desktop and tablet widths.
+- Use Plotly figures only; do not add legacy frontend files or Python-only UI runtime code.
+- Keep downloaded data exports consistent with the backend schema.
+
+### Run the frontend
+
 ```bash
-streamlit run frontend/app.py
-# Opens automatically at http://localhost:8501
+cd frontend
+npm install
+npm run dev
 ```
 
----
+### ✅ Verification
+
+```bash
+# Start backend in one terminal
+uvicorn api.main:app --reload
+
+# Start frontend in another terminal
+cd frontend
+npm install
+npm run dev
+
+# Must open browser page with chat + chart layout and sidebar
+# Type: "Show me temperature data in the Indian Ocean"
+# Expected: assistant reply appears + chart renders on right
+```
 
 ## 10. Phase 6 — Testing & Deployment
 
-### tests/test_api.py
-```python
-from fastapi.testclient import TestClient
-from api.main import app
-
-client = TestClient(app)
-
-TEST_QUESTIONS = [
-    "temperature at 500m depth in Indian Ocean",
-    "show me floats near Madagascar",
-    "salinity trend over 2023",
-]
-
-def test_chat_returns_200():
-    resp = client.post("/api/chat", json={"message": TEST_QUESTIONS[0]})
-    assert resp.status_code == 200
-
-def test_chat_response_shape():
-    resp = client.post("/api/chat", json={"message": TEST_QUESTIONS[0]}).json()
-    assert "answer" in resp
-    assert resp["chart_type"] in ["map", "profile", "timeseries", "none"]
-    assert isinstance(resp["float_ids"], list)
-
-def test_sql_safety_guard():
-    resp = client.post("/api/chat", json={"message": "DROP TABLE argo_profiles"})
-    assert "DROP" not in resp.json().get("sql_used", "")
-
-def test_empty_message():
-    resp = client.post("/api/chat", json={"message": ""})
-    assert resp.status_code in [200, 422]
-```
-
-Run tests:
-```bash
-pytest tests/ -v
-```
-
-### Deployment on Render.com (free, recommended)
-```bash
-# 1. Push to GitHub
-git init
-git add .
-git commit -m "Initial SeaBorg build"
-git remote add origin https://github.com/YOUR_USERNAME/seaborg
-git push -u origin main
-
-# 2. Go to render.com
-#    → New Web Service
-#    → Connect your GitHub repo
-#    → Build Command:  pip install -r requirements.txt
-#    → Start Command:  uvicorn api.main:app --host 0.0.0.0 --port $PORT
-#    → Add environment variables from your .env file
-#    → Deploy
-
-# 3. For Streamlit UI: go to share.streamlit.io → Deploy from GitHub (free)
-```
+**Goal:** All tests pass with `pytest tests/ -v`, and the app is deployed with a React frontend.
 
 ---
+
+### `tests/test_ingestion.py`
+
+Write tests that verify:
+1. `parser.parse_netcdf(sample_nc)` returns a DataFrame containing all required columns: `float_id`, `date`, `latitude`, `longitude`, `depth_m`, `temp_c`, `salinity`.
+2. `qc_filter.apply_qc(df, ds)` removes rows where `TEMP_QC != 1` or `PSAL_QC != 1`.
+3. `qc_filter.apply_qc(df, ds)` removes rows with `temp_c < -3` or `temp_c > 40`.
+4. `qc_filter.apply_qc(df, ds)` removes rows with `salinity < 20` or `salinity > 42`.
+5. Calling `db_loader.save_to_postgres(df)` twice does not duplicate rows (unique constraint test or row count check).
+
+---
+
+### `tests/test_rag.py`
+
+Write tests that verify:
+1. `summariser.summarise_row(row)` returns a non-empty string that contains the float ID and temperature value from the row.
+2. `embedder.embed_query("test query")` returns a numpy array with shape `(1, 384)`.
+3. `embedder.embed_texts(["text1", "text2"])` returns a numpy array with shape `(2, 384)`.
+4. After `load_index()`, `retrieve("temperature in Indian Ocean")` returns a DataFrame with exactly 5 rows.
+5. The returned DataFrame contains all columns of `argo_profiles`.
+
+---
+
+### `tests/test_api.py`
+
+Use FastAPI's `TestClient` (synchronous). Write tests that verify:
+1. `POST /api/chat` with `{"message": "What is the ocean temperature?"}` returns HTTP 200.
+2. The response body contains keys: `answer`, `chart_type`, `float_ids`, `sql_used`, `confidence`.
+3. `chart_type` value is one of `["map", "profile", "timeseries", "none"]`.
+4. A message containing `"DROP TABLE"` — the `sql_used` field in the response must NOT contain `DROP TABLE` (the safety filter must have caught it).
+5. `GET /api/floats` returns HTTP 200 with a non-empty JSON list.
+
+---
+
+### `tests/test_charts.py`
+
+Write tests that verify:
+1. `plot_float_map(df)` returns a `plotly.graph_objects.Figure` instance.
+2. `plot_float_map(df)` figure has at least one trace.
+3. `plot_depth_profile(df, float_id)` returns a `go.Figure` instance.
+4. `plot_depth_profile(df, float_id)` figure Y-axis has `autorange="reversed"` (inverted).
+5. `plot_timeseries(df, float_id)` returns a `go.Figure` instance.
+6. `exporter.export_csv(df, "test")` creates a file at the expected path.
+
+---
+
+### Deployment — Backend on Render.com
+
+| Field | Value |
+|---|---|
+| Build command | `pip install -r requirements.txt` |
+| Start command | `uvicorn api.main:app --host 0.0.0.0 --port $PORT` |
+| Environment vars | Copy all keys from `.env`; set `ENVIRONMENT=production` |
+| Database | Provision a Render managed PostgreSQL; use its connection string as `DATABASE_URL` |
+
+### Deployment — Frontend on Vercel
+
+| Field | Value |
+|---|---|
+| Repository | Your GitHub repo |
+| Framework preset | Vite |
+| Build command | `npm run build` |
+| Output directory | `dist` |
+| Environment vars | `VITE_API_URL` set to the Render backend public HTTPS URL |
+
+### Pre-deployment Checklist
+
+- [ ] `pytest tests/ -v` → zero failures
+- [ ] `.env` is in `.gitignore` and not tracked
+- [ ] `requirements.txt` is up to date (`pip freeze > requirements.txt`)
+- [ ] FAISS index + Parquet file are either committed or `build_index.py` runs on first boot
+- [ ] `api/main.py` CORS `allow_origins` restricted to the deployed frontend URL
+- [ ] All env vars set in Render and Vercel dashboards
+- [ ] `POST /api/chat` returns valid response on the live URL
+- [ ] React frontend loads successfully from the Vercel URL
+
+### ✅ Final Verification
+
+```
+# All of these must be true simultaneously for the project to be complete:
+
+python scripts/run_ingestion.py        → completes without errors
+python scripts/build_index.py         → prints vector count > 0
+uvicorn api.main:app --reload         → starts, prints "SeaBorg API ready."
+curl POST /api/chat {real question}   → returns valid ChatResponse JSON
+cd frontend && npm install && npm run dev
+                                         → working chatbot + live charts in browser
+pytest tests/ -v                      → all tests pass, zero failures
+https://{your-deployed-backend-url}    → accessible in browser over HTTPS
+https://{your-deployed-frontend-url}   → accessible in browser over HTTPS
+```
 
 ## 11. Agent Build Instructions
 
 If you are an AI coding agent using this README, follow these rules exactly:
 
-1. **Create the full folder structure first** — run the `mkdir` command from Section 2 before writing any Python.
-2. **Create all `__init__.py` files** — every folder under `ingestion/`, `rag/`, `llm/`, `api/`, `visualisation/`, `frontend/` needs one.
+1. **Create the full folder structure first** — run the `mkdir` command from Section 2 before writing any Python or React code.
+2. **Create all `__init__.py` files** — every Python package folder under `ingestion/`, `rag/`, `llm/`, `api/`, and `visualisation/` needs one.
 3. **Run `scripts/setup_db.py` before any ingestion** — fix all database connection errors before proceeding.
 4. **Download at least 3 real `.nc` files** from `https://data-argo.ifremer.fr` into `data/raw/` before testing the parser.
 5. **Complete each phase's deliverable check before starting the next phase** — do not write Phase 2 code until Phase 1 inserts rows successfully.
 6. **Never hardcode API keys** — always use `os.getenv()` and load from `.env` with `python-dotenv`.
-7. **Re-run `scripts/build_index.py` every time new data is ingested** — the FAISS index must reflect current data.
-8. **Wrap every LLM-generated SQL in `safe_sql_query()`** before executing against the database.
-9. **Run `pytest tests/ -v` and fix all failures before deployment.**
-10. **Never commit `.env`** — confirm it is listed in `.gitignore` before the first `git push`.
+7. **Use `GROQ_API_KEY` and `GROQ_MODEL`** for all LLM calls — do not import or configure OpenAI.
+8. **Re-run `scripts/build_index.py` every time new data is ingested** — the FAISS index must reflect current data.
+9. **Wrap every LLM-generated SQL in `safe_sql_query()`** before executing against the database.
+10. **Run `pytest tests/ -v` and fix all failures before deployment.**
+11. **Never commit `.env`** — confirm it is listed in `.gitignore` before the first `git push`.
+12. **Build and verify the React frontend** with `cd frontend && npm install && npm run dev` during development and `npm run build` before deployment.
 
 ### Quick-start command sequence (run in order)
 ```bash
@@ -991,13 +1067,13 @@ python scripts/setup_db.py
 python scripts/run_ingestion.py
 python scripts/build_index.py
 
-# Run
-uvicorn api.main:app --reload &
-streamlit run frontend/app.py
+# Run backend
+uvicorn api.main:app --reload
+
+# Run frontend
+cd frontend
+npm install
+npm run dev
 ```
 
-If all commands succeed and `http://localhost:8501` shows a chat interface, the build is complete.
-
----
-
-*SeaBorg — Making ocean data accessible to everyone.*
+If all commands succeed and `http://localhost:5173` shows a chat interface, the build is complete.

@@ -14,6 +14,10 @@ class ChatResponse(BaseModel):
     sql_used: str | None
     confidence: float
     metadata: dict | None = None
+    visualization_type: str | None = None
+    visualization_data: dict | None = None
+    chart_title: str | None = None
+    chart_description: str | None = None
 
 
 class FloatDataRequest(BaseModel):

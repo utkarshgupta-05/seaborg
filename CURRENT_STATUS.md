@@ -3,7 +3,7 @@
 ## High-Level Architecture Overview
 SeaBorg is designed to allow users to query ARGO oceanographic float data using plain English. The architecture is split into an offline ETL pipeline and a runtime RAG (Retrieval-Augmented Generation) pipeline exposed via a modern REST API. 
 
-The project has successfully completed Phases 0 through 3. Below is the mapping of our current data flow and architecture.
+The project has successfully completed Phases 0 through 5. Below is the mapping of our current data flow and architecture.
 
 ### 1. Data Ingestion & ETL (Phase 0 & 1)
 The offline pipeline is fully operational:
@@ -29,3 +29,10 @@ Introduced a new Query Router and Structured Query Engine to bypass FAISS for de
 
 ### 5. Runtime Routing Integration (Phase 3A)
 The API endpoint `/api/chat` now features active routing capabilities, smoothly serving both strictly deterministic tabular data and semantic LLM-grounded insights based on query classification.
+
+### 6. Visualization Engine (Phase 5)
+The visualization engine is fully implemented:
+* **Interactive Charts**: Generates customized Map, Depth Profile, and Timeseries charts using `plotly`.
+* **React-Ready Payloads**: Converts Plotly figures to fully JSON-serializable payloads using `fig.to_plotly_json()` combined with custom serialization cleaners for NaNs, Pandas Timestamps, and NumPy types.
+* **Exporter Pipeline**: Automatically saves CSVs, HTML, and PNGs (with graceful fallback handling) to `data/exports/`.
+* **API Integration**: Extends `/api/chat` with additive visualization response fields while maintaining complete backward compatibility.
