@@ -11,8 +11,9 @@ class ChatResponse(BaseModel):
     answer: str
     chart_type: Literal["map", "profile", "timeseries", "none"]
     float_ids: list[str]
-    sql_used: str
+    sql_used: str | None
     confidence: float
+    metadata: dict | None = None
 
 
 class FloatDataRequest(BaseModel):

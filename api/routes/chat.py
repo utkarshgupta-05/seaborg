@@ -12,6 +12,9 @@ load_dotenv()
 router = APIRouter()
 
 
+from router.query_router import classify_query, QueryType
+from structured_query.engine import answer_structured_query
+
 def detect_chart_type(message: str) -> str:
     """
     Classifies a user message into a chart type using keyword matching.
@@ -44,17 +47,37 @@ def detect_chart_type(message: str) -> str:
 @router.post("/chat", response_model=ChatResponse)
 async def chat(req: ChatRequest) -> ChatResponse:
     """
-    Handles POST /chat. Retrieves ARGO context, calls LLM, returns structured response.
-
-    Args:
-        req: ChatRequest with message and optional session_id.
-
-    Returns:
-        ChatResponse with answer, chart_type, float_ids, sql_used, confidence.
-
-    Side effects:
-        Calls FAISS retriever and OpenAI API.
+    Handles POST /chat. Routes query dynamically, retrieves data, returns structured response.
     """
+    query_type = classify_query(req.message)
+    print(f"[ROUTER] {query_type.name}")
+
+    if query_type == QueryType.STRUCTURED:
+        result = answer_structured_query(req.message)
+        answer = result["summary"]
+        chart_type = detect_chart_type(req.message)
+        
+        # Defensive guard for float_ids
+        rows_df = result["rows"]
+        if not rows_df.empty and "float_id" in rows_df.columns:
+            float_ids = rows_df["float_id"].unique().tolist()
+        else:
+            float_ids = []
+            
+        sql_used = "N/A (Structured Engine)"
+        confidence = 1.0  # Structured engine is deterministic
+        metadata = result.get("metadata")
+        
+        return ChatResponse(
+            answer=answer,
+            chart_type=chart_type,
+            float_ids=float_ids,
+            sql_used=sql_used,
+            confidence=confidence,
+            metadata=metadata
+        )
+
+    # SEMANTIC PATH (Default)
     rows = retrieve(req.message, top_k=5)
     answer, sql = answer_query(req.message, rows)
     chart_type = detect_chart_type(req.message)
@@ -66,4 +89,5 @@ async def chat(req: ChatRequest) -> ChatResponse:
         float_ids=float_ids,
         sql_used=sql,
         confidence=0.85,
+        metadata={"query_type": "semantic"}
     )

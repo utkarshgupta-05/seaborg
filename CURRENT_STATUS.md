@@ -26,3 +26,6 @@ The backend is powered by FastAPI (`api/main.py`). The flow for an incoming user
 
 ### 4. Hybrid Retrieval Architecture (Phase 3A)
 Introduced a new Query Router and Structured Query Engine to bypass FAISS for deterministically structured queries involving precise depths and geographic bounds.
+
+### 5. Runtime Routing Integration (Phase 3A)
+The API endpoint `/api/chat` now features active routing capabilities, smoothly serving both strictly deterministic tabular data and semantic LLM-grounded insights based on query classification.

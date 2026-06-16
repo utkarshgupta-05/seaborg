@@ -34,3 +34,6 @@ To resolve the semantic limitations of FAISS on structured geographical and nume
 
 * **`router/query_router.py`**: Intercepts user queries and classifies them as either `STRUCTURED` or `SEMANTIC` based on keyword detection.
 * **`structured_query/engine.py`**: Bypasses FAISS entirely and loads the raw `argo.parquet` DataFrame. It extracts numerical and geographic constraints (using `geo_mapping.py`), filters the DataFrame deterministicly, and returns a human-readable statistical summary alongside the raw DataFrame and constraint metadata.
+
+## Phase 3A: Runtime Integration
+Successfully integrated the Query Router directly into the `POST /api/chat` endpoint. The API now intelligently checks `classify_query()`. If a query is `STRUCTURED`, it calls `answer_structured_query()` and bypasses FAISS completely, ensuring pure deterministic answers for depths and geographic filters. Semantic queries natively fall back to the existing FAISS + LLM pipeline.
