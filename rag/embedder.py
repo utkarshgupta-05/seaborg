@@ -36,31 +36,53 @@ def _embed_via_api(texts: list[str]) -> np.ndarray:
     }
     data = json.dumps({"inputs": texts}).encode("utf-8")
     
-    max_retries = 3
-    for attempt in range(max_retries):
-        try:
-            req = urllib.request.Request(api_url, data=data, headers=headers, method="POST")
-            with urllib.request.urlopen(req, timeout=30.0) as response:
-                result = json.loads(response.read().decode("utf-8"))
-                if isinstance(result, dict) and "error" in result:
-                    # If model is loading, wait and retry
-                    if "loading" in result["error"].lower() and attempt < max_retries - 1:
-                        time.sleep(15)
-                        continue
-                    raise RuntimeError(f"API Error: {result['error']}")
-                return np.asarray(result, dtype=np.float32)
-        except urllib.error.HTTPError as e:
-            error_msg = e.read().decode("utf-8")
-            if e.code == 503 and attempt < max_retries - 1:
-                # 503 Service Unavailable is common when HF model is loading
-                time.sleep(15)
-                continue
-            raise RuntimeError(f"HF API failed: {e.code} - {error_msg}")
-        except Exception as e:
-            if attempt < max_retries - 1:
-                time.sleep(5)
-                continue
-            raise RuntimeError(f"HF API request failed: {e}")
+    _orig_getaddrinfo = socket.getaddrinfo
+    
+    def _doh_getaddrinfo(host, port, family=0, type=0, proto=0, flags=0):
+        if host == "api-inference.huggingface.co":
+            try:
+                # Use Google DoH to bypass Render DNS failures
+                req = urllib.request.Request(f"https://dns.google/resolve?name={host}&type=A")
+                with urllib.request.urlopen(req, timeout=5.0) as response:
+                    data = json.loads(response.read().decode("utf-8"))
+                    for answer in data.get("Answer", []):
+                        if answer.get("type") == 1:
+                            ip = answer.get("data")
+                            return [(socket.AF_INET, socket.SOCK_STREAM, 6, '', (ip, port))]
+            except Exception as e:
+                print(f"DoH resolution failed: {e}")
+        return _orig_getaddrinfo(host, port, family, type, proto, flags)
+    
+    socket.getaddrinfo = _doh_getaddrinfo
+
+    try:
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                req = urllib.request.Request(api_url, data=data, headers=headers, method="POST")
+                with urllib.request.urlopen(req, timeout=30.0) as response:
+                    result = json.loads(response.read().decode("utf-8"))
+                    if isinstance(result, dict) and "error" in result:
+                        # If model is loading, wait and retry
+                        if "loading" in result["error"].lower() and attempt < max_retries - 1:
+                            time.sleep(15)
+                            continue
+                        raise RuntimeError(f"API Error: {result['error']}")
+                    return np.asarray(result, dtype=np.float32)
+            except urllib.error.HTTPError as e:
+                error_msg = e.read().decode("utf-8")
+                if e.code == 503 and attempt < max_retries - 1:
+                    # 503 Service Unavailable is common when HF model is loading
+                    time.sleep(15)
+                    continue
+                raise RuntimeError(f"HF API failed: {e.code} - {error_msg}")
+            except Exception as e:
+                if attempt < max_retries - 1:
+                    time.sleep(5)
+                    continue
+                raise RuntimeError(f"HF API request failed: {e}")
+    finally:
+        socket.getaddrinfo = _orig_getaddrinfo
 
 def embed_texts(texts: list[str]) -> np.ndarray:
     """
