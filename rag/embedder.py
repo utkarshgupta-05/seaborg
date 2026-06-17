@@ -15,6 +15,10 @@ def _get_model() -> Any:
     return _model
 
 
+import json
+import urllib.request
+import urllib.error
+
 def _embed_via_api(texts: list[str]) -> np.ndarray:
     """Uses Hugging Face Inference API to generate embeddings to save memory."""
     token = os.getenv("HUGGINGFACE_TOKEN")
@@ -22,12 +26,20 @@ def _embed_via_api(texts: list[str]) -> np.ndarray:
         raise ValueError("HUGGINGFACE_TOKEN is not set.")
         
     api_url = "https://api-inference.huggingface.co/pipeline/feature-extraction/sentence-transformers/all-MiniLM-L6-v2"
-    headers = {"Authorization": f"Bearer {token}"}
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json"
+    }
+    data = json.dumps({"inputs": texts}).encode("utf-8")
     
-    response = httpx.post(api_url, headers=headers, json={"inputs": texts}, timeout=30.0)
-    response.raise_for_status()
-    
-    return np.asarray(response.json(), dtype=np.float32)
+    req = urllib.request.Request(api_url, data=data, headers=headers, method="POST")
+    try:
+        with urllib.request.urlopen(req, timeout=30.0) as response:
+            result = json.loads(response.read().decode("utf-8"))
+            return np.asarray(result, dtype=np.float32)
+    except urllib.error.HTTPError as e:
+        error_msg = e.read().decode("utf-8")
+        raise RuntimeError(f"HF API failed: {e.code} - {error_msg}")
 
 
 def embed_texts(texts: list[str]) -> np.ndarray:
