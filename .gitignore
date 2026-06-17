@@ -12,3 +12,52 @@ data/exports/
 *.log
 visualiser.html
 pytest_output.txt
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+*.tsbuildinfo
+.env.*
+frontend/vite.config.js
+frontend/vite.config.d.ts
+
+# --- Additional Standard Ignores ---
+
+# Jupyter Notebooks
+.ipynb_checkpoints/
+
+# Python Testing & Typing
+.pytest_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+*.pyo
+*.pyd
+
+# Node.js / React
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.eslintcache
+
+# OS & IDEs
+Thumbs.db
+Desktop.ini
+.idea/
+
+# Database & Secrets
+*.sqlite3
+*.db
+*.pem
+*.key
+*.cert
+
+# Python Packaging & Distribution
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Frontend Testing
+frontend/coverage/

@@ -32,6 +32,10 @@ app.include_router(chat.router, prefix="/api")
 app.include_router(data.router, prefix="/api")
 app.include_router(export.router, prefix="/api")
 
+@app.get("/")
+async def root():
+    return {"status": "ok", "service": "SeaBorg API"}
+
 
 # ── Startup ───────────────────────────────────────────────────────────────────
 @app.on_event("startup")
