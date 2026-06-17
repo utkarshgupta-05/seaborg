@@ -1,14 +1,15 @@
 import numpy as np
-from sentence_transformers import SentenceTransformer
+from typing import Any
 
 
-_model: SentenceTransformer | None = None
+_model: Any = None
 
 
-def _get_model() -> SentenceTransformer:
+def _get_model() -> Any:
     """Lazily loads and returns the embedding model singleton."""
     global _model
     if _model is None:
+        from sentence_transformers import SentenceTransformer
         _model = SentenceTransformer("all-MiniLM-L6-v2")
     return _model
 
