@@ -29,7 +29,7 @@ def _embed_via_api(texts: list[str]) -> np.ndarray:
     if not token:
         raise ValueError("HUGGINGFACE_TOKEN is not set.")
         
-    api_url = "https://router.huggingface.co/hf-inference/models/sentence-transformers/all-MiniLM-L6-v2"
+    api_url = "https://router.huggingface.co/hf-inference/pipeline/feature-extraction/sentence-transformers/all-MiniLM-L6-v2"
     headers = {
         "Authorization": f"Bearer {token}",
         "Content-Type": "application/json"
