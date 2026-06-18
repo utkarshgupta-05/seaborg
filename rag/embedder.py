@@ -29,31 +29,12 @@ def _embed_via_api(texts: list[str]) -> np.ndarray:
     if not token:
         raise ValueError("HUGGINGFACE_TOKEN is not set.")
         
-    api_url = "https://api-inference.huggingface.co/pipeline/feature-extraction/sentence-transformers/all-MiniLM-L6-v2"
+    api_url = "https://router.huggingface.co/hf-inference/pipeline/feature-extraction/sentence-transformers/all-MiniLM-L6-v2"
     headers = {
         "Authorization": f"Bearer {token}",
         "Content-Type": "application/json"
     }
     data = json.dumps({"inputs": texts}).encode("utf-8")
-    
-    _orig_getaddrinfo = socket.getaddrinfo
-    
-    def _doh_getaddrinfo(host, port, family=0, type=0, proto=0, flags=0):
-        if host == "api-inference.huggingface.co":
-            try:
-                # Use Google DoH to bypass Render DNS failures
-                req = urllib.request.Request(f"https://dns.google/resolve?name={host}&type=A")
-                with urllib.request.urlopen(req, timeout=5.0) as response:
-                    data = json.loads(response.read().decode("utf-8"))
-                    for answer in data.get("Answer", []):
-                        if answer.get("type") == 1:
-                            ip = answer.get("data")
-                            return [(socket.AF_INET, socket.SOCK_STREAM, 6, '', (ip, port))]
-            except Exception as e:
-                print(f"DoH resolution failed: {e}")
-        return _orig_getaddrinfo(host, port, family, type, proto, flags)
-    
-    socket.getaddrinfo = _doh_getaddrinfo
 
     try:
         max_retries = 3
@@ -81,8 +62,8 @@ def _embed_via_api(texts: list[str]) -> np.ndarray:
                     time.sleep(5)
                     continue
                 raise RuntimeError(f"HF API request failed: {e}")
-    finally:
-        socket.getaddrinfo = _orig_getaddrinfo
+    except Exception as e:
+        raise RuntimeError(f"HF API request failed: {e}")
 
 def embed_texts(texts: list[str]) -> np.ndarray:
     """
