@@ -40,12 +40,12 @@ def detect_chart_type(message: str) -> str:
     profile_keywords = ["depth", "profile", "pressure", "meter", "vertical"]
     timeseries_keywords = ["trend", "over time", "monthly", "year", "history", "change"]
 
-    if any(kw in msg for kw in map_keywords):
-        return "map"
     if any(kw in msg for kw in profile_keywords):
         return "profile"
     if any(kw in msg for kw in timeseries_keywords):
         return "timeseries"
+    if any(kw in msg for kw in map_keywords):
+        return "map"
     return "none"
 
 
@@ -65,12 +65,12 @@ def detect_visualization_intent(message: str) -> str | None:
     profile_keywords = ["depth", "profile", "pressure", "meter", "vertical"]
     timeseries_keywords = ["trend", "over time", "monthly", "year", "history", "change"]
     
-    if any(kw in msg for kw in map_keywords):
-        return "map"
     if any(kw in msg for kw in profile_keywords):
         return "profile"
     if any(kw in msg for kw in timeseries_keywords):
         return "timeseries"
+    if any(kw in msg for kw in map_keywords):
+        return "map"
     return None
 
 

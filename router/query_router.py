@@ -35,6 +35,20 @@ def classify_query(question: str) -> QueryType:
     # Depth indicators (e.g. 100m, 200m, 500m, 1000m, \d+m)
     if re.search(r"\d+\s*m\b", q):
         return QueryType.STRUCTURED
+    
+    visualization_keywords = [
+        "profile",
+        "plot",
+        "chart",
+        "graph",
+        "map",
+        "location",
+        "trend",
+        "over time"
+    ]
+
+    if any(k in q for k in visualization_keywords):
+        return QueryType.STRUCTURED
 
     # Semantic keywords (summarize, explain, describe, trend, pattern, overview, insight)
     # By default, anything else is semantic
