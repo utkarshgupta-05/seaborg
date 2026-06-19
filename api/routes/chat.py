@@ -11,7 +11,7 @@ from fastapi import APIRouter
 from api.models import ChatRequest, ChatResponse
 from llm.query_engine import answer_query
 from rag.retriever import retrieve
-from router.query_router import classify_query, QueryType
+from router.query_router import classify_query, route_query, QueryType
 from structured_query.engine import answer_structured_query
 
 from visualisation.map_chart import plot_float_map
@@ -165,9 +165,22 @@ def generate_visualization_payload(message: str, df: pd.DataFrame, float_ids: li
 async def chat(req: ChatRequest) -> ChatResponse:
     """
     Handles POST /chat. Routes query dynamically, retrieves data, returns structured response.
+
+    Intent routing (Phase 8):
+      STRUCTURED → PostgreSQL structured engine
+      SEMANTIC   → FAISS retriever + LLM
+      HYBRID     → Both paths run; structured data first, LLM narration second
+                   (Full merge wired in Phase 9 via hybrid_service)
     """
-    query_type = classify_query(req.message)
-    print(f"[ROUTER] {query_type.name}")
+    routing = route_query(req.message)
+    query_type = routing.intent
+    import logging
+    logging.getLogger(__name__).info(
+        "[ROUTER] %s | structured_signals=%s | semantic_signals=%s",
+        query_type.value.upper(),
+        routing.structured_signals,
+        routing.semantic_signals,
+    )
 
     if query_type == QueryType.STRUCTURED:
         result = answer_structured_query(req.message)
@@ -182,7 +195,11 @@ async def chat(req: ChatRequest) -> ChatResponse:
             
         sql_used = "N/A (Structured Engine)"
         confidence = 1.0
-        metadata = result.get("metadata")
+        metadata = result.get("metadata", {})
+        metadata["routing_signals"] = {
+            "structured": routing.structured_signals,
+            "semantic": routing.semantic_signals,
+        }
         
         viz_type, viz_data, chart_title, chart_description = generate_visualization_payload(
             req.message, rows_df, float_ids
@@ -201,7 +218,55 @@ async def chat(req: ChatRequest) -> ChatResponse:
             chart_description=chart_description
         )
 
-    # SEMANTIC PATH (Default)
+    # ── HYBRID PATH ─────────────────────────────────────────────────────────
+    # Phase 8: HYBRID is wired as a first-class route.
+    # The structured side gives us facts + rows; the LLM narrates over them.
+    # Phase 9 will introduce hybrid_service for proper context merging.
+    if query_type == QueryType.HYBRID:
+        struct_result = answer_structured_query(req.message)
+        struct_summary = struct_result["summary"]
+        rows_df = struct_result["rows"]
+        metadata = struct_result.get("metadata", {})
+        metadata["query_type"] = "hybrid"
+        metadata["routing_signals"] = {
+            "structured": routing.structured_signals,
+            "semantic": routing.semantic_signals,
+        }
+
+        # Also retrieve semantic context and generate a narrated answer
+        semantic_rows = retrieve(req.message, top_k=5)
+        narrated_answer, sql = answer_query(req.message, semantic_rows)
+
+        # Combine: structured facts first, then LLM narration
+        answer = f"{struct_summary}\n\n---\n{narrated_answer}"
+        chart_type = detect_chart_type(req.message)
+
+        if not rows_df.empty and "float_id" in rows_df.columns:
+            float_ids = rows_df["float_id"].unique().tolist()
+        elif not semantic_rows.empty and "float_id" in semantic_rows.columns:
+            float_ids = semantic_rows["float_id"].unique().tolist()
+        else:
+            float_ids = []
+
+        viz_df = rows_df if not rows_df.empty else semantic_rows
+        viz_type, viz_data, chart_title, chart_description = generate_visualization_payload(
+            req.message, viz_df, float_ids
+        )
+
+        return ChatResponse(
+            answer=answer,
+            chart_type=chart_type,
+            float_ids=float_ids,
+            sql_used="N/A (Hybrid Engine)",
+            confidence=0.90,
+            metadata=metadata,
+            visualization_type=viz_type,
+            visualization_data=viz_data,
+            chart_title=chart_title,
+            chart_description=chart_description,
+        )
+
+    # ── SEMANTIC PATH (default) ──────────────────────────────────────────────
     rows = retrieve(req.message, top_k=5)
     answer, sql = answer_query(req.message, rows)
     chart_type = detect_chart_type(req.message)
@@ -217,9 +282,15 @@ async def chat(req: ChatRequest) -> ChatResponse:
         float_ids=float_ids,
         sql_used=sql,
         confidence=0.85,
-        metadata={"query_type": "semantic"},
+        metadata={
+            "query_type": "semantic",
+            "routing_signals": {
+                "structured": routing.structured_signals,
+                "semantic": routing.semantic_signals,
+            },
+        },
         visualization_type=viz_type,
         visualization_data=viz_data,
         chart_title=chart_title,
-        chart_description=chart_description
+        chart_description=chart_description,
     )
