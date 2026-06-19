@@ -265,43 +265,49 @@ class TestEngine:
 # ── Depth extraction tests ────────────────────────────────────────────────────
 
 class TestDepthExtraction:
-    """Tests for the depth parser in the service layer."""
+    """Tests for the depth parser."""
 
     def test_between_range(self):
-        from structured_query.service import extract_depth
-        assert extract_depth("between 200m and 400m") == (200.0, 400.0)
+        from structured_query.parser import parse_query
+        p = parse_query("between 200m and 400m")
+        assert p.depth_min == 200.0 and p.depth_max == 400.0
 
     def test_below(self):
-        from structured_query.service import extract_depth
-        assert extract_depth("below 500m") == (500.0, None)
+        from structured_query.parser import parse_query
+        p = parse_query("below 500m")
+        assert p.depth_min == 500.0 and p.depth_max is None
 
     def test_above(self):
-        from structured_query.service import extract_depth
-        assert extract_depth("above 100m") == (None, 100.0)
+        from structured_query.parser import parse_query
+        p = parse_query("above 100m")
+        assert p.depth_min is None and p.depth_max == 100.0
 
     def test_at_depth(self):
-        from structured_query.service import extract_depth
-        d_min, d_max = extract_depth("at 500m")
-        assert d_min == 450.0
-        assert d_max == 550.0
+        from structured_query.parser import parse_query
+        p = parse_query("at 500m")
+        assert p.depth_min == 450.0
+        assert p.depth_max == 550.0
 
     def test_deeper_than(self):
-        from structured_query.service import extract_depth
-        assert extract_depth("deeper than 300m") == (300.0, None)
+        from structured_query.parser import parse_query
+        p = parse_query("deeper than 300m")
+        assert p.depth_min == 300.0 and p.depth_max is None
 
     def test_shallower_than(self):
-        from structured_query.service import extract_depth
-        assert extract_depth("shallower than 200m") == (None, 200.0)
+        from structured_query.parser import parse_query
+        p = parse_query("shallower than 200m")
+        assert p.depth_min is None and p.depth_max == 200.0
 
     def test_no_depth(self):
-        from structured_query.service import extract_depth
-        assert extract_depth("average temperature") == (None, None)
+        from structured_query.parser import parse_query
+        p = parse_query("average temperature")
+        assert p.depth_min is None and p.depth_max is None
 
     def test_meters_unit(self):
-        from structured_query.service import extract_depth
-        d_min, d_max = extract_depth("at 500 meters")
-        assert d_min == 450.0
-        assert d_max == 550.0
+        from structured_query.parser import parse_query
+        p = parse_query("at 500 meters")
+        assert p.depth_min == 450.0
+        assert p.depth_max == 550.0
 
 
 # ── Real-DB integration test (guarded) ───────────────────────────────────────

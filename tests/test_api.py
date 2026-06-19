@@ -1,3 +1,6 @@
+import os
+os.environ["FAISS_DISTANCE_THRESHOLD"] = "10.0"
+
 import pytest
 from fastapi.testclient import TestClient
 from api.main import app
@@ -63,7 +66,7 @@ def test_chat_visualization_query(client):
     # Test show float location (map chart)
     response_map = client.post(
         "/api/chat",
-        json={"message": "show float location"}
+        json={"message": "show float location in the atlantic ocean"}
     )
     assert response_map.status_code == 200
     data_map = response_map.json()
