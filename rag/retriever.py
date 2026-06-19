@@ -21,6 +21,7 @@ _ARGO_SCHEMA_COLUMNS = [
     "salinity",
     "oxygen",
     "created_at",
+    "faiss_distance",
 ]
 
 
@@ -63,16 +64,17 @@ def load_index() -> None:
     _df = pd.read_parquet(parquet_path).reset_index(drop=True)
 
 
-def retrieve(user_query: str, top_k: int = 5) -> pd.DataFrame:
+def retrieve(user_query: str, top_k: int = 5, distance_threshold: float = None) -> pd.DataFrame:
     """
     Retrieves top-k nearest rows from parquet using FAISS similarity search.
 
     Args:
         user_query: Natural language user query.
         top_k: Number of rows to return.
+        distance_threshold: Optional max L2 distance. Rows with distance > threshold are dropped.
 
     Returns:
-        DataFrame of retrieved rows with argo_profiles schema columns.
+        DataFrame of retrieved rows with argo_profiles schema columns (plus faiss_distance).
 
     Side effects:
         None.
@@ -82,6 +84,12 @@ def retrieve(user_query: str, top_k: int = 5) -> pd.DataFrame:
 
     query_vec = embed_query(user_query).astype("float32")
     search_k = min(top_k, len(_df))
-    _, indices = _index.search(query_vec, search_k)
-    rows = _df.iloc[indices[0]].reset_index(drop=True)
+    distances, indices = _index.search(query_vec, search_k)
+    
+    rows = _df.iloc[indices[0]].copy().reset_index(drop=True)
+    rows["faiss_distance"] = distances[0]
+    
+    if distance_threshold is not None:
+        rows = rows[rows["faiss_distance"] <= distance_threshold].reset_index(drop=True)
+
     return _ensure_schema(rows)

@@ -249,7 +249,7 @@ async def chat(req: ChatRequest) -> ChatResponse:
             chart_type=chart_type,
             float_ids=float_ids,
             sql_used=sql,
-            confidence=0.90,
+            confidence=result.get("confidence", 0.90),
             metadata=metadata,
             visualization_type=viz_type,
             visualization_data=viz_data,
@@ -258,21 +258,33 @@ async def chat(req: ChatRequest) -> ChatResponse:
         )
 
     # ── SEMANTIC PATH (default) ──────────────────────────────────────────────
-    rows = retrieve(req.message, top_k=5)
-    answer, sql = answer_query(req.message, rows)
-    chart_type = detect_chart_type(req.message)
-    float_ids = rows["float_id"].unique().tolist()
-
-    viz_type, viz_data, chart_title, chart_description = generate_visualization_payload(
-        req.message, rows, float_ids
-    )
+    # Filter weak matches using threshold to prevent hallucinations on irrelevant queries
+    threshold = float(os.getenv("FAISS_DISTANCE_THRESHOLD", "1.5"))
+    rows = retrieve(req.message, top_k=5, distance_threshold=threshold)
+    
+    # Calculate confidence based on whether we found relevant rows
+    confidence = 0.85
+    if rows.empty:
+        confidence = 0.20
+        answer = "I couldn't find any relevant oceanographic records with high enough confidence to answer your question. Could you try rephrasing or asking about a specific region/depth?"
+        sql = "-- No data found"
+        chart_type = "none"
+        float_ids = []
+        viz_type, viz_data, chart_title, chart_description = None, None, None, None
+    else:
+        answer, sql = answer_query(req.message, rows)
+        chart_type = detect_chart_type(req.message)
+        float_ids = rows["float_id"].unique().tolist()
+        viz_type, viz_data, chart_title, chart_description = generate_visualization_payload(
+            req.message, rows, float_ids
+        )
 
     return ChatResponse(
         answer=answer,
         chart_type=chart_type,
         float_ids=float_ids,
         sql_used=sql,
-        confidence=0.85,
+        confidence=confidence,
         metadata={
             "query_type": "semantic",
             "routing_signals": {

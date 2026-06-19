@@ -42,13 +42,15 @@ def hybrid_answer(question: str) -> dict:
     metadata["query_type"] = "hybrid"
 
     # 2. Semantic Retrieval (Context / Explanations)
-    semantic_rows = retrieve(question, top_k=5)
+    # Filter weak matches out using a distance threshold (lower is better for L2 distance)
+    # threshold 1.5 is typically safe for MiniLM normalized embeddings
+    threshold = float(os.getenv("FAISS_DISTANCE_THRESHOLD", "1.5"))
+    semantic_rows = retrieve(question, top_k=5, distance_threshold=threshold)
 
     # 3. Deduplicate and merge rows
     # Prefer structured rows (authoritative) by placing them first and keeping 'first' duplicate
     combined_df = pd.concat([struct_rows, semantic_rows], ignore_index=True)
     if not combined_df.empty:
-        # Convert to strings/comparable types if necessary, but standard deduplication usually works
         # Ensure we have the subset columns before deduplicating
         subset_cols = [c for c in ["float_id", "date", "depth_m"] if c in combined_df.columns]
         if subset_cols:
@@ -58,6 +60,12 @@ def hybrid_answer(question: str) -> dict:
     # We pass only the semantic rows as "Supporting Records" so the LLM doesn't double-count
     # the structured data, but we return combined_df for the UI visualisations.
     prompt = build_hybrid_prompt(question, struct_summary, semantic_rows)
+
+    # Calculate hybrid confidence based on retrieval success
+    # If we have structured rows, we are confident. If we lack semantic context, we just lower it a bit.
+    confidence = 0.90
+    if semantic_rows.empty:
+        confidence = 0.70  # Lower confidence since we couldn't find a semantic explanation
 
     # 5. Invoke LLM
     try:
@@ -86,5 +94,6 @@ def hybrid_answer(question: str) -> dict:
         "summary": final_answer,
         "rows": combined_df,
         "metadata": metadata,
-        "sql": sql
+        "sql": sql,
+        "confidence": confidence
     }
