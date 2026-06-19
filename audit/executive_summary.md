@@ -1,0 +1,5 @@
+# Executive Summary
+- **What the project does:** SeaBorg is an AI-powered conversational web application that allows users to query and visualize ARGO float oceanographic data (temperature, salinity, depth) using natural language. It combines a React frontend with a FastAPI backend, utilizing both structured database filtering and a semantic Retrieval-Augmented Generation (RAG) pipeline.
+- **Overall health:** The project is a functional Proof of Concept (PoC) but is structurally fragile and not ready for production. It suffers from a "split-brain" data architecture, blocking concurrent requests, and fundamentally misapplies semantic vector search to numerical tabular data.
+- **Main strengths:** The user interface concept is excellent, seamlessly blending chat with dynamic Plotly visualizations. The underlying data ingestion pipeline successfully normalizes complex NetCDF files into queryable formats.
+- **Main risks:** Severe memory exhaustion (OOM) risks at scale due to loading massive dataframes into RAM. The semantic RAG pipeline is prone to hallucination because FAISS embeddings cannot accurately parse mathematical inequalities or geographic coordinates.
