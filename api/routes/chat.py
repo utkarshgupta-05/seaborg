@@ -11,6 +11,7 @@ from fastapi import APIRouter
 from api.models import ChatRequest, ChatResponse
 from llm.query_engine import answer_query
 from rag.retriever import retrieve
+from retrieval.hybrid_service import hybrid_answer
 from router.query_router import classify_query, route_query, QueryType
 from structured_query.engine import answer_structured_query
 
@@ -219,45 +220,35 @@ async def chat(req: ChatRequest) -> ChatResponse:
         )
 
     # ── HYBRID PATH ─────────────────────────────────────────────────────────
-    # Phase 8: HYBRID is wired as a first-class route.
-    # The structured side gives us facts + rows; the LLM narrates over them.
-    # Phase 9 will introduce hybrid_service for proper context merging.
+    # Phase 9: True Context-Fusion Architecture
     if query_type == QueryType.HYBRID:
-        struct_result = answer_structured_query(req.message)
-        struct_summary = struct_result["summary"]
-        rows_df = struct_result["rows"]
-        metadata = struct_result.get("metadata", {})
+        # hybrid_service handles the structured + semantic retrieval, row deduplication,
+        # grounded prompt construction, and LLM narration.
+        result = hybrid_answer(req.message)
+        
+        answer = result["summary"]
+        rows_df = result["rows"]
+        sql = result.get("sql", "N/A (Hybrid Engine)")
+        
+        metadata = result.get("metadata", {})
         metadata["query_type"] = "hybrid"
         metadata["routing_signals"] = {
             "structured": routing.structured_signals,
             "semantic": routing.semantic_signals,
         }
 
-        # Also retrieve semantic context and generate a narrated answer
-        semantic_rows = retrieve(req.message, top_k=5)
-        narrated_answer, sql = answer_query(req.message, semantic_rows)
-
-        # Combine: structured facts first, then LLM narration
-        answer = f"{struct_summary}\n\n---\n{narrated_answer}"
         chart_type = detect_chart_type(req.message)
+        float_ids = rows_df["float_id"].unique().tolist() if not rows_df.empty and "float_id" in rows_df.columns else []
 
-        if not rows_df.empty and "float_id" in rows_df.columns:
-            float_ids = rows_df["float_id"].unique().tolist()
-        elif not semantic_rows.empty and "float_id" in semantic_rows.columns:
-            float_ids = semantic_rows["float_id"].unique().tolist()
-        else:
-            float_ids = []
-
-        viz_df = rows_df if not rows_df.empty else semantic_rows
         viz_type, viz_data, chart_title, chart_description = generate_visualization_payload(
-            req.message, viz_df, float_ids
+            req.message, rows_df, float_ids
         )
 
         return ChatResponse(
             answer=answer,
             chart_type=chart_type,
             float_ids=float_ids,
-            sql_used="N/A (Hybrid Engine)",
+            sql_used=sql,
             confidence=0.90,
             metadata=metadata,
             visualization_type=viz_type,
