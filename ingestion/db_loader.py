@@ -4,6 +4,9 @@ from pathlib import Path
 import pandas as pd
 from dotenv import load_dotenv
 from sqlalchemy import create_engine
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 load_dotenv()
@@ -31,12 +34,12 @@ def save_to_postgres(df: pd.DataFrame) -> None:
         Writes rows to PostgreSQL and prints row count loaded.
     """
     if df.empty:
-        print("Loaded 0 rows into PostgreSQL (empty DataFrame).")
+        logger.info("Loaded 0 rows into PostgreSQL (empty DataFrame).")
         return
 
     engine = _get_engine()
     df.to_sql("argo_profiles", engine, if_exists="append", index=False)
-    print(f"Loaded {len(df)} rows into PostgreSQL.")
+    logger.info(f"Loaded {len(df)} rows into PostgreSQL.")
 
 
 def save_to_parquet(df: pd.DataFrame) -> None:
@@ -61,9 +64,9 @@ def save_to_parquet(df: pd.DataFrame) -> None:
             # Preserve pipeline contract: create an empty parquet only when none exists yet.
             empty_df = pd.DataFrame(columns=["float_id", "date", "latitude", "longitude", "depth_m", "temp_c", "salinity"])
             empty_df.to_parquet(target, index=False)
-            print(f"Wrote 0 rows to Parquet: {target}")
+            logger.info(f"Wrote 0 rows to Parquet: {target}")
         else:
-            print(f"Parquet unchanged (empty batch): {target}")
+            logger.info(f"Parquet unchanged (empty batch): {target}")
         return
 
     working_df = df.copy()
@@ -78,4 +81,4 @@ def save_to_parquet(df: pd.DataFrame) -> None:
 
     deduped = combined.drop_duplicates(subset=["float_id", "date", "depth_m"]).reset_index(drop=True)
     deduped.to_parquet(target, index=False)
-    print(f"Wrote {len(deduped)} rows to Parquet: {target}")
+    logger.info(f"Wrote {len(deduped)} rows to Parquet: {target}")

@@ -1,9 +1,12 @@
 import os
 
 from dotenv import load_dotenv
+import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import create_engine, text
+
+logger = logging.getLogger(__name__)
 
 from api.routes import chat, data, export
 from rag.retriever import load_index
@@ -57,4 +60,4 @@ async def startup() -> None:
     with engine.connect() as conn:
         conn.execute(text("SELECT 1"))
 
-    print("SeaBorg API ready.")
+    logger.info("SeaBorg API ready.")

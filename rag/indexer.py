@@ -3,7 +3,10 @@ import sys
 
 import faiss
 import pandas as pd
+import logging
 from dotenv import load_dotenv
+
+logger = logging.getLogger(__name__)
 
 from .embedder import embed_texts
 from .summariser import summarise_row
@@ -46,4 +49,4 @@ def build_and_save() -> None:
         sys.stdout.reconfigure(encoding="utf-8")
     except Exception:
         pass
-    print(f"Indexed {len(summaries)} vectors → saved to {faiss_index_path}")
+    logger.info(f"Indexed {len(summaries)} vectors → saved to {faiss_index_path}")

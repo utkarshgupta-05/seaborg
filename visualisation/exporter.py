@@ -2,6 +2,9 @@ import os
 from datetime import datetime
 import pandas as pd
 import plotly.graph_objects as go
+import logging
+
+logger = logging.getLogger(__name__)
 
 def _get_export_path(filename: str, ext: str) -> str:
     # Resolve absolute path to data/exports/ in workspace
@@ -19,23 +22,23 @@ def _get_export_path(filename: str, ext: str) -> str:
 def export_csv(df: pd.DataFrame, filename: str) -> str:
     path = _get_export_path(filename, ".csv")
     df.to_csv(path, index=False)
-    print("[EXPORT] CSV saved")
+    logger.debug("[EXPORT] CSV saved")
     return path
 
 def export_chart_html(fig: go.Figure, filename: str) -> str:
     path = _get_export_path(filename, ".html")
     fig.write_html(path)
-    print("[EXPORT] HTML saved")
+    logger.debug("[EXPORT] HTML saved")
     return path
 
 def export_chart_png(fig: go.Figure, filename: str) -> str:
     path = _get_export_path(filename, ".png")
     try:
         fig.write_image(path, engine="kaleido")
-        print("[EXPORT] PNG saved")
+        logger.debug("[EXPORT] PNG saved")
         return path
     except Exception as e:
-        print(f"[EXPORT] PNG export failed: {e}. Graceful fallback applied.")
+        logger.warning(f"[EXPORT] PNG export failed: {e}. Graceful fallback applied.")
         # Fallback: write text description/placeholder
         fallback_path = path + ".txt"
         with open(fallback_path, "w", encoding="utf-8") as f:

@@ -1,6 +1,9 @@
 import os
 import numpy as np
+import logging
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 _model: Any = None
 
@@ -8,7 +11,7 @@ def _get_model() -> Any:
     """Lazily loads and returns the embedding model singleton with strict memory limits."""
     global _model
     if _model is None:
-        print("Loading local PyTorch model...")
+        logger.info("Loading local PyTorch model...")
         # Restrict threads to prevent memory spikes on Render free tier
         os.environ["OMP_NUM_THREADS"] = "1"
         os.environ["MKL_NUM_THREADS"] = "1"
