@@ -1,5 +1,10 @@
 import pandas as pd
 import plotly.graph_objects as go
+import logging
+
+from .common import empty_figure, VARIABLE_LABELS, VARIABLE_TITLES
+
+logger = logging.getLogger(__name__)
 
 def plot_depth_profile(df: pd.DataFrame, float_id: str, variable: str = "temp_c") -> go.Figure:
     """
@@ -10,34 +15,12 @@ def plot_depth_profile(df: pd.DataFrame, float_id: str, variable: str = "temp_c"
         float_id: Identifier of the float to plot.
         variable: Column name of the variable to plot.
     """
-    friendly_labels = {
-        "temp_c": "Temperature (°C)",
-        "salinity": "Salinity (PSU)",
-        "oxygen": "Oxygen"
-    }
-    
-    var_title = {
-        "temp_c": "Temperature",
-        "salinity": "Salinity",
-        "oxygen": "Oxygen"
-    }.get(variable, variable.capitalize())
-    
-    var_label = friendly_labels.get(variable, variable.capitalize())
+    var_title = VARIABLE_TITLES.get(variable, variable.capitalize())
+    var_label = VARIABLE_LABELS.get(variable, variable.capitalize())
     
     if df is None or df.empty or "float_id" not in df.columns or "depth_m" not in df.columns or variable not in df.columns:
-        fig = go.Figure()
-        fig.add_annotation(
-            text="No data available",
-            xref="paper", yref="paper",
-            x=0.5, y=0.5, showarrow=False,
-            font=dict(size=20, color="gray")
-        )
-        fig.update_layout(
-            xaxis=dict(visible=False),
-            yaxis=dict(visible=False)
-        )
-        print("[VIZ] Profile chart generated")
-        return fig
+        logger.debug("[VIZ] Profile chart generated (empty)")
+        return empty_figure()
 
     # Filter to float_id
     float_df = df[df["float_id"] == float_id].copy()
@@ -46,20 +29,8 @@ def plot_depth_profile(df: pd.DataFrame, float_id: str, variable: str = "temp_c"
     float_df = float_df.dropna(subset=["depth_m", variable])
     
     if float_df.empty:
-        fig = go.Figure()
-        fig.add_annotation(
-            text="No data available",
-            xref="paper", yref="paper",
-            x=0.5, y=0.5, showarrow=False,
-            font=dict(size=20, color="gray")
-        )
-        fig.update_layout(
-            xaxis=dict(visible=False),
-            yaxis=dict(visible=False)
-        )
-        print("[VIZ] Profile chart generated")
-        return fig
-        
+        logger.debug("[VIZ] Profile chart generated (empty)")
+        return empty_figure()
     float_df = float_df.sort_values(by="depth_m", ascending=True)
 
     fig = go.Figure()
@@ -95,5 +66,5 @@ def plot_depth_profile(df: pd.DataFrame, float_id: str, variable: str = "temp_c"
         hovermode="closest"
     )
 
-    print("[VIZ] Profile chart generated")
+    logger.debug("[VIZ] Profile chart generated")
     return fig

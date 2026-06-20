@@ -18,6 +18,7 @@ from structured_query.engine import answer_structured_query
 from visualisation.map_chart import plot_float_map
 from visualisation.profile_chart import plot_depth_profile
 from visualisation.timeseries_chart import plot_timeseries
+from visualisation.common import VARIABLE_TITLES
 
 load_dotenv()
 
@@ -117,11 +118,7 @@ def generate_visualization_payload(message: str, df: pd.DataFrame, float_ids: li
         return None, None, None, None
         
     variable = detect_variable(message)
-    var_title = {
-        "temp_c": "Temperature",
-        "salinity": "Salinity",
-        "oxygen": "Oxygen"
-    }.get(variable, variable.capitalize())
+    var_title = VARIABLE_TITLES.get(variable, variable.capitalize())
     
     float_id = float_ids[0] if float_ids else "Unknown"
     fig = None

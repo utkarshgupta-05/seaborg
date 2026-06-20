@@ -2,6 +2,7 @@ from visualisation.map_chart import plot_float_map
 from visualisation.profile_chart import plot_depth_profile
 from visualisation.timeseries_chart import plot_timeseries
 from visualisation.exporter import export_csv, export_chart_html, export_chart_png
+from visualisation.common import empty_figure, VARIABLE_LABELS, VARIABLE_TITLES
 
 __all__ = [
     "plot_float_map",
@@ -9,5 +10,8 @@ __all__ = [
     "plot_timeseries",
     "export_csv",
     "export_chart_html",
-    "export_chart_png"
+    "export_chart_png",
+    "empty_figure",
+    "VARIABLE_LABELS",
+    "VARIABLE_TITLES"
 ]

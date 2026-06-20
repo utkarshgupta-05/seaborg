@@ -1,6 +1,11 @@
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
+import logging
+
+from .common import empty_figure
+
+logger = logging.getLogger(__name__)
 
 def plot_float_map(df: pd.DataFrame, title: str | None = None) -> go.Figure:
     """
@@ -16,38 +21,15 @@ def plot_float_map(df: pd.DataFrame, title: str | None = None) -> go.Figure:
     required_cols = ["latitude", "longitude", "temp_c", "float_id", "date", "depth_m", "salinity"]
     
     if df is None or df.empty or not all(col in df.columns for col in required_cols):
-        fig = go.Figure()
-        fig.add_annotation(
-            text="No data available",
-            xref="paper", yref="paper",
-            x=0.5, y=0.5, showarrow=False,
-            font=dict(size=20, color="gray")
-        )
-        fig.update_layout(
-            xaxis=dict(visible=False),
-            yaxis=dict(visible=False)
-        )
-        print("[VIZ] Map chart generated")
-        return fig
-        
+        logger.debug("[VIZ] Map chart generated (empty)")
+        return empty_figure()
     chart_title = title if title else "ARGO Float Positions"
     
     # Ensure no NaN positions
     clean_df = df.dropna(subset=["latitude", "longitude"])
     if clean_df.empty:
-        fig = go.Figure()
-        fig.add_annotation(
-            text="No data available",
-            xref="paper", yref="paper",
-            x=0.5, y=0.5, showarrow=False,
-            font=dict(size=20, color="gray")
-        )
-        fig.update_layout(
-            xaxis=dict(visible=False),
-            yaxis=dict(visible=False)
-        )
-        print("[VIZ] Map chart generated")
-        return fig
+        logger.debug("[VIZ] Map chart generated (empty)")
+        return empty_figure()
     
     fig = px.scatter_geo(
         clean_df,
@@ -79,5 +61,5 @@ def plot_float_map(df: pd.DataFrame, title: str | None = None) -> go.Figure:
         projection_type="equirectangular"
     )
     
-    print("[VIZ] Map chart generated")
+    logger.debug("[VIZ] Map chart generated")
     return fig
