@@ -84,11 +84,14 @@ def hybrid_answer(question: str) -> dict:
         # Fallback if LLM fails
         final_answer = f"{struct_summary}\n\n(LLM narrative unavailable)"
 
-    # Best-effort SQL generation for the UI display
-    try:
-        sql = generate_sql(question)
-    except Exception:
-        sql = "-- SQL generation failed"
+    # Best-effort SQL generation for the UI display if data exists
+    if combined_df.empty:
+        sql = "-- No data found"
+    else:
+        try:
+            sql = generate_sql(question)
+        except Exception:
+            sql = "-- SQL generation failed"
 
     return {
         "summary": final_answer,

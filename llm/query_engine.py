@@ -28,15 +28,15 @@ def answer_query(question: str, context_rows: pd.DataFrame) -> tuple[str, str]:
     Side effects:
         Makes up to two Groq API calls (answer + SQL generation).
     """
-    # Generate SQL regardless — the caller may still want it
+    # Early exit: no data → deterministic answer, no LLM call
+    if context_rows is None or context_rows.empty:
+        return "No data found for the requested region.", "-- No data found"
+
+    # Generate SQL for display purposes if data exists
     try:
         sql = generate_sql(question)
     except Exception:
         sql = "-- SQL generation failed"
-
-    # Early exit: no data → deterministic answer, no LLM call
-    if context_rows is None or context_rows.empty:
-        return "No data found for the requested region.", sql
 
     client = Groq(api_key=os.getenv("GROQ_API_KEY"))
     model = os.getenv("LLM_MODEL", "llama-3.1-8b-instant")
