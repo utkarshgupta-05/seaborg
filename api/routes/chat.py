@@ -160,7 +160,7 @@ def generate_visualization_payload(message: str, df: pd.DataFrame, float_ids: li
 
 
 @router.post("/chat", response_model=ChatResponse)
-async def chat(req: ChatRequest) -> ChatResponse:
+def chat(req: ChatRequest) -> ChatResponse:
     """
     Handles POST /chat. Routes query dynamically, retrieves data, returns structured response.
 

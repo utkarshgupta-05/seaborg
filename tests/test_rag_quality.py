@@ -109,7 +109,7 @@ def test_chat_semantic_safe_fallback(mock_route, mock_retrieve):
     mock_retrieve.return_value = pd.DataFrame()
 
     req = ChatRequest(message="nonsense query explain")
-    response = asyncio.run(chat(req))
+    response = chat(req)
 
     # Should safely fallback without calling LLM
     assert response.confidence == 0.20

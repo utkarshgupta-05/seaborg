@@ -2,18 +2,13 @@ import os
 from typing import Optional
 
 import pandas as pd
-from dotenv import load_dotenv
 from fastapi import APIRouter, Query
-from sqlalchemy import create_engine, text
+from sqlalchemy import text
 
-load_dotenv()
+from api.database import get_engine
+
 
 router = APIRouter()
-
-
-def _get_engine():
-    """Creates a SQLAlchemy engine from DATABASE_URL."""
-    return create_engine(os.getenv("DATABASE_URL"), future=True)
 
 
 @router.get("/floats")
@@ -34,7 +29,7 @@ def list_floats(
     Side effects:
         Queries PostgreSQL.
     """
-    engine = _get_engine()
+    engine = get_engine()
     sql = """
         SELECT
             float_id,
@@ -74,6 +69,8 @@ def get_float(
     end_date: Optional[str] = Query(default=None),
     depth_min: Optional[float] = Query(default=None),
     depth_max: Optional[float] = Query(default=None),
+    limit: int = Query(default=1000, ge=1),
+    offset: int = Query(default=0, ge=0),
 ):
     """
     Returns all readings for a single float with optional filters.
@@ -84,6 +81,8 @@ def get_float(
         end_date: Optional ISO date string filter end.
         depth_min: Optional minimum depth in metres.
         depth_max: Optional maximum depth in metres.
+        limit: Number of results to return.
+        offset: Number of results to skip.
 
     Returns:
         JSON list of matching rows.
@@ -91,9 +90,9 @@ def get_float(
     Side effects:
         Queries PostgreSQL.
     """
-    engine = _get_engine()
+    engine = get_engine()
     conditions = ["float_id = :float_id"]
-    params: dict = {"float_id": float_id}
+    params: dict = {"float_id": float_id, "limit": limit, "offset": offset}
 
     if start_date:
         conditions.append("date >= :start_date")
@@ -109,7 +108,7 @@ def get_float(
         params["depth_max"] = depth_max
 
     where = " AND ".join(conditions)
-    sql = f"SELECT * FROM argo_profiles WHERE {where} ORDER BY date, depth_m"
+    sql = f"SELECT * FROM argo_profiles WHERE {where} ORDER BY date, depth_m LIMIT :limit OFFSET :offset"
 
     with engine.connect() as conn:
         rows = conn.execute(text(sql), params).fetchall()
@@ -128,7 +127,7 @@ def get_stats():
     Side effects:
         Queries PostgreSQL.
     """
-    engine = _get_engine()
+    engine = get_engine()
     sql = """
         SELECT
             COUNT(*)            AS total_rows,

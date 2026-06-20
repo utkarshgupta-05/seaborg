@@ -2,21 +2,14 @@ import io
 import os
 
 import pandas as pd
-from dotenv import load_dotenv
 from fastapi import APIRouter
 from fastapi.responses import StreamingResponse
-from sqlalchemy import create_engine, text
+from sqlalchemy import text
 
 from api.models import ExportRequest
-
-load_dotenv()
+from api.database import get_engine
 
 router = APIRouter()
-
-
-def _get_engine():
-    """Creates a SQLAlchemy engine from DATABASE_URL."""
-    return create_engine(os.getenv("DATABASE_URL"), future=True)
 
 
 def _query_data(req: ExportRequest) -> pd.DataFrame:
@@ -32,7 +25,7 @@ def _query_data(req: ExportRequest) -> pd.DataFrame:
     Side effects:
         Queries PostgreSQL.
     """
-    engine = _get_engine()
+    engine = get_engine()
     conditions = ["float_id = ANY(:float_ids)"]
     params: dict = {"float_ids": req.float_ids}
 

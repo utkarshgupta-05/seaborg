@@ -146,7 +146,7 @@ def test_chat_endpoint_hybrid_route(mock_route, mock_hybrid):
     }
 
     req = ChatRequest(message="average temperature and explain")
-    response = asyncio.run(chat(req))
+    response = chat(req)
 
     # Must be valid ChatResponse Pydantic model
     assert isinstance(response, ChatResponse)
