@@ -69,31 +69,39 @@ def hybrid_answer(question: str) -> dict:
     if semantic_rows.empty:
         confidence = 0.70  # Lower confidence since we couldn't find a semantic explanation
 
-    # 5. Invoke LLM
-    try:
-        client = Groq(api_key=os.getenv("GROQ_API_KEY"))
-        model = os.getenv("LLM_MODEL", "llama-3.1-8b-instant")
-        
-        response = client.chat.completions.create(
-            model=model,
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.1,
-        )
-        final_answer = response.choices[0].message.content.strip()
-    except Exception as e:
-        import logging
-        logging.getLogger(__name__).error(f"LLM call failed: {e}")
-        # Fallback if LLM fails
-        final_answer = f"{struct_summary}\n\n(LLM narrative unavailable)"
+    import concurrent.futures
 
-    # Best-effort SQL generation for the UI display if data exists
-    if combined_df.empty:
-        sql = "-- No data found"
-    else:
+    # 5. Invoke LLM and generate SQL concurrently
+    def get_answer():
         try:
-            sql = generate_sql(question)
+            client = Groq(api_key=os.getenv("GROQ_API_KEY"))
+            model = os.getenv("LLM_MODEL", "llama-3.1-8b-instant")
+            
+            response = client.chat.completions.create(
+                model=model,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.1,
+            )
+            return response.choices[0].message.content.strip()
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).error(f"LLM call failed: {e}")
+            return f"{struct_summary}\n\n(LLM narrative unavailable)"
+
+    def get_sql():
+        if combined_df.empty:
+            return "-- No data found"
+        try:
+            return generate_sql(question)
         except Exception:
-            sql = "-- SQL generation failed"
+            return "-- SQL generation failed"
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+        future_answer = executor.submit(get_answer)
+        future_sql = executor.submit(get_sql)
+        
+        final_answer = future_answer.result()
+        sql = future_sql.result()
 
     return {
         "summary": final_answer,

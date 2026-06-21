@@ -10,6 +10,8 @@ from .nl_to_sql import generate_sql
 load_dotenv()
 
 
+import concurrent.futures
+
 def answer_query(question: str, context_rows: pd.DataFrame) -> tuple[str, str]:
     """
     Runs the full RAG + LLM call and returns a strictly data-grounded answer.
@@ -26,28 +28,34 @@ def answer_query(question: str, context_rows: pd.DataFrame) -> tuple[str, str]:
         A tuple (answer_text, sql_string).
 
     Side effects:
-        Makes up to two Groq API calls (answer + SQL generation).
+        Makes up to two Groq API calls (answer + SQL generation) concurrently.
     """
     # Early exit: no data → deterministic answer, no LLM call
     if context_rows is None or context_rows.empty:
         return "No data found for the requested region.", "-- No data found"
 
-    # Generate SQL for display purposes if data exists
-    try:
-        sql = generate_sql(question)
-    except Exception:
-        sql = "-- SQL generation failed"
+    def get_sql():
+        try:
+            return generate_sql(question)
+        except Exception:
+            return "-- SQL generation failed"
 
-    client = Groq(api_key=os.getenv("GROQ_API_KEY"))
-    model = os.getenv("LLM_MODEL", "llama-3.1-8b-instant")
+    def get_answer():
+        client = Groq(api_key=os.getenv("GROQ_API_KEY"))
+        model = os.getenv("LLM_MODEL", "llama-3.1-8b-instant")
+        prompt = build_prompt(question, context_rows)
+        response = client.chat.completions.create(
+            model=model,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.1,
+        )
+        return response.choices[0].message.content.strip()
 
-    prompt = build_prompt(question, context_rows)
+    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+        future_sql = executor.submit(get_sql)
+        future_answer = executor.submit(get_answer)
 
-    response = client.chat.completions.create(
-        model=model,
-        messages=[{"role": "user", "content": prompt}],
-        temperature=0.1,
-    )
-    answer = response.choices[0].message.content.strip()
+        sql = future_sql.result()
+        answer = future_answer.result()
 
     return answer, sql
