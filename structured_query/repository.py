@@ -11,25 +11,14 @@ from typing import Optional
 
 import pandas as pd
 from dotenv import load_dotenv
-from sqlalchemy import create_engine, text
+from sqlalchemy import text
+from api.database import get_engine
 
 load_dotenv()
 
 logger = logging.getLogger(__name__)
 
-# Shared engine — created once per process
-_engine = None
 
-
-def _get_engine():
-    """Returns a shared SQLAlchemy engine, creating it on first call."""
-    global _engine
-    if _engine is None:
-        db_url = os.getenv("DATABASE_URL")
-        if not db_url:
-            raise ValueError("DATABASE_URL is not set.")
-        _engine = create_engine(db_url, future=True, pool_pre_ping=True)
-    return _engine
 
 
 def query_with_filters(
@@ -102,7 +91,7 @@ def query_with_filters(
 
     logger.info("Structured SQL: %s | params: %s", sql.strip(), params)
 
-    engine = _get_engine()
+    engine = get_engine()
     with engine.connect() as conn:
         return pd.read_sql(text(sql), conn, params=params)
 
@@ -168,7 +157,7 @@ def aggregate_stats(
         f"{where_clause}".strip()
     )
 
-    engine = _get_engine()
+    engine = get_engine()
     with engine.connect() as conn:
         row = conn.execute(text(sql), params).fetchone()
 

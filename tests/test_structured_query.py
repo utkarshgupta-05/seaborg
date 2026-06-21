@@ -56,7 +56,7 @@ class TestRepository:
         result = query_with_filters()
         assert result.empty
 
-    @patch("structured_query.repository._get_engine")
+    @patch("structured_query.repository.get_engine")
     def test_aggregate_stats_no_filters(self, mock_get_engine):
         """aggregate_stats with no filters should run a global query (no WHERE)."""
         from structured_query.repository import aggregate_stats
@@ -78,7 +78,7 @@ class TestRepository:
         sql_called = str(mock_conn.execute.call_args[0][0])
         assert "WHERE" not in sql_called
 
-    @patch("structured_query.repository._get_engine")
+    @patch("structured_query.repository.get_engine")
     def test_depth_filter_builds_correct_sql(self, mock_get_engine):
         """Verify the WHERE clause includes depth conditions."""
         from structured_query.repository import query_with_filters
@@ -101,7 +101,7 @@ class TestRepository:
         assert "depth_m" in sql_str
         assert "LIMIT" in sql_str
 
-    @patch("structured_query.repository._get_engine")
+    @patch("structured_query.repository.get_engine")
     def test_geo_filter_passes_lat_lon(self, mock_get_engine):
         from structured_query.repository import query_with_filters
 
@@ -120,7 +120,7 @@ class TestRepository:
         assert "latitude" in sql_str
         assert "longitude" in sql_str
 
-    @patch("structured_query.repository._get_engine")
+    @patch("structured_query.repository.get_engine")
     def test_aggregate_stats_returns_dict(self, mock_get_engine):
         from structured_query.repository import aggregate_stats
 
