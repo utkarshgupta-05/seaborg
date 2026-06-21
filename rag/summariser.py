@@ -1,5 +1,5 @@
 import pandas as pd
-
+from llm.geo_mapping import detect_region_from_coords
 
 def summarise_row(row: dict | pd.Series) -> str:
     """
@@ -24,8 +24,11 @@ def summarise_row(row: dict | pd.Series) -> str:
     lat = float(row_data["latitude"])
     lon = float(row_data["longitude"])
 
+    region = detect_region_from_coords(lat, lon)
+    region_text = f" in the {region}" if region else ""
+
     return (
         f"Float {float_id} recorded a temperature of {temp_c:.1f}°C and salinity of "
-        f"{salinity:.2f} PSU at {round(depth_m):.0f}m depth on {date} at coordinates "
+        f"{salinity:.2f} PSU at {round(depth_m):.0f}m depth{region_text} on {date} at coordinates "
         f"({lat:.2f}, {lon:.2f})."
     )

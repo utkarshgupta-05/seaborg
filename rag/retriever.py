@@ -5,6 +5,7 @@ import pandas as pd
 from dotenv import load_dotenv
 
 from .embedder import embed_query
+from structured_query.parser import ParsedQuery
 
 
 _index = None
@@ -64,7 +65,7 @@ def load_index() -> None:
     _df = pd.read_parquet(parquet_path).reset_index(drop=True)
 
 
-def retrieve(user_query: str, top_k: int = 5, distance_threshold: float = None) -> pd.DataFrame:
+def retrieve(user_query: str, top_k: int = 5, distance_threshold: float = None, parsed_query: ParsedQuery = None) -> pd.DataFrame:
     """
     Retrieves top-k nearest rows from parquet using FAISS similarity search.
 
@@ -72,6 +73,7 @@ def retrieve(user_query: str, top_k: int = 5, distance_threshold: float = None) 
         user_query: Natural language user query.
         top_k: Number of rows to return.
         distance_threshold: Optional max L2 distance. Rows with distance > threshold are dropped.
+        parsed_query: Optional ParsedQuery object containing depth and geographic filters.
 
     Returns:
         DataFrame of retrieved rows with argo_profiles schema columns (plus faiss_distance).
@@ -83,7 +85,12 @@ def retrieve(user_query: str, top_k: int = 5, distance_threshold: float = None) 
         raise RuntimeError("Index not loaded. Call load_index() before retrieve().")
 
     query_vec = embed_query(user_query).astype("float32")
-    search_k = min(top_k, len(_df))
+    
+    # Pre-filtering tradeoff: Rebuilding FAISS indices per query or using IDMaps adds significant
+    # complexity and latency. Instead, we use an efficient post-retrieval filter by fetching a
+    # larger initial set (top 2000) and applying strict Pandas filtering before truncating to top_k.
+    search_k = 2000 if parsed_query and parsed_query.has_filters else top_k
+    search_k = min(search_k, len(_df))
     distances, indices = _index.search(query_vec, search_k)
     
     rows = _df.iloc[indices[0]].copy().reset_index(drop=True)
@@ -92,4 +99,16 @@ def retrieve(user_query: str, top_k: int = 5, distance_threshold: float = None) 
     if distance_threshold is not None:
         rows = rows[rows["faiss_distance"] <= distance_threshold].reset_index(drop=True)
 
+    # Apply strict constraints if parsed
+    if parsed_query:
+        if parsed_query.lat_min is not None:
+            rows = rows[(rows["latitude"] >= parsed_query.lat_min) & (rows["latitude"] <= parsed_query.lat_max)]
+        if parsed_query.lon_min is not None:
+            rows = rows[(rows["longitude"] >= parsed_query.lon_min) & (rows["longitude"] <= parsed_query.lon_max)]
+        if parsed_query.depth_min is not None:
+            rows = rows[rows["depth_m"] >= parsed_query.depth_min]
+        if parsed_query.depth_max is not None:
+            rows = rows[rows["depth_m"] <= parsed_query.depth_max]
+
+    rows = rows.head(top_k).reset_index(drop=True)
     return _ensure_schema(rows)

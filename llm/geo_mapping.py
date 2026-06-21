@@ -58,3 +58,18 @@ def detect_region(text: str) -> tuple[str | None, dict | None]:
         if name in text_lower:
             return name, REGION_BOUNDS[name]
     return None, None
+
+
+def detect_region_from_coords(lat: float, lon: float) -> str | None:
+    """
+    Reverse-geocodes coordinates into a known region name.
+
+    Returns:
+        The matched region name, or None if the coordinates don't fall
+        into any known bounding box.
+    """
+    for name, bounds in REGION_BOUNDS.items():
+        if (bounds["lat_min"] <= lat <= bounds["lat_max"] and
+            bounds["lon_min"] <= lon <= bounds["lon_max"]):
+            return name.title()
+    return None

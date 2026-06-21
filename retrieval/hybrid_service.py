@@ -18,6 +18,7 @@ from llm.context_builder import build_hybrid_prompt
 from llm.nl_to_sql import generate_sql
 from rag.retriever import retrieve
 from structured_query.engine import answer_structured_query
+from structured_query.parser import parse_query
 
 load_dotenv()
 
@@ -45,7 +46,8 @@ def hybrid_answer(question: str) -> dict:
     # Filter weak matches out using a distance threshold (lower is better for L2 distance)
     # threshold 1.5 is typically safe for MiniLM normalized embeddings
     threshold = float(os.getenv("FAISS_DISTANCE_THRESHOLD", "1.5"))
-    semantic_rows = retrieve(question, top_k=5, distance_threshold=threshold)
+    parsed = parse_query(question)
+    semantic_rows = retrieve(question, top_k=5, distance_threshold=threshold, parsed_query=parsed)
 
     # 3. Deduplicate and merge rows
     # Prefer structured rows (authoritative) by placing them first and keeping 'first' duplicate

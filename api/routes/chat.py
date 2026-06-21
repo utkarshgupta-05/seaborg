@@ -14,6 +14,7 @@ from rag.retriever import retrieve
 from retrieval.hybrid_service import hybrid_answer
 from router.query_router import classify_query, route_query, QueryType
 from structured_query.engine import answer_structured_query
+from structured_query.parser import parse_query
 
 from visualisation.map_chart import plot_float_map
 from visualisation.profile_chart import plot_depth_profile
@@ -257,7 +258,8 @@ def chat(req: ChatRequest) -> ChatResponse:
     # ── SEMANTIC PATH (default) ──────────────────────────────────────────────
     # Filter weak matches using threshold to prevent hallucinations on irrelevant queries
     threshold = float(os.getenv("FAISS_DISTANCE_THRESHOLD", "1.5"))
-    rows = retrieve(req.message, top_k=5, distance_threshold=threshold)
+    parsed = parse_query(req.message)
+    rows = retrieve(req.message, top_k=5, distance_threshold=threshold, parsed_query=parsed)
     
     # Calculate confidence based on whether we found relevant rows
     confidence = 0.85

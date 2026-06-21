@@ -106,5 +106,11 @@ def parse_query(question: str) -> ParsedQuery:
         parsed.lon_max = bounds["lon_max"]
         parsed.metadata_filters["region"] = name.title()
         logger.info("[PARSER] Extracted region: %s", name.title())
+    else:
+        # Detect any generic ocean/sea words for context even if unmatched
+        q_lower = question.lower()
+        if "ocean" in q_lower or "sea" in q_lower:
+            # We didn't match a specific bounding box
+            parsed.metadata_filters["unmatched_region"] = True
 
     return parsed
