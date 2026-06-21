@@ -68,7 +68,11 @@ def detect_region_from_coords(lat: float, lon: float) -> str | None:
         The matched region name, or None if the coordinates don't fall
         into any known bounding box.
     """
-    for name, bounds in REGION_BOUNDS.items():
+    sorted_regions = sorted(
+        REGION_BOUNDS.items(),
+        key=lambda item: (item[1]["lat_max"] - item[1]["lat_min"]) * (item[1]["lon_max"] - item[1]["lon_min"])
+    )
+    for name, bounds in sorted_regions:
         if (bounds["lat_min"] <= lat <= bounds["lat_max"] and
             bounds["lon_min"] <= lon <= bounds["lon_max"]):
             return name.title()
