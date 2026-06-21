@@ -124,7 +124,7 @@ def test_hybrid_service_orchestration(
 
 # ── API Endpoint Compatibility Tests ──────────────────────────────────────────
 
-import asyncio
+
 
 @patch("api.routes.chat.hybrid_answer")
 @patch("api.routes.chat.route_query")

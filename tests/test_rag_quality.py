@@ -6,7 +6,7 @@ Verifies distance thresholding, confidence calculation, safe fallbacks,
 and weak-context rejection.
 """
 
-import asyncio
+
 import pandas as pd
 import pytest
 from unittest.mock import patch, MagicMock
