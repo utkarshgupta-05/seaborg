@@ -39,7 +39,7 @@ def detect_chart_type(message: str) -> str:
     """
     msg = message.lower()
 
-    map_keywords = ["where", "map", "location", "region", "ocean", "sea", "coordinates"]
+    map_keywords = ["where", "map", "location", "region", "ocean", "sea", "coordinates", "observations"]
     profile_keywords = ["depth", "profile", "pressure", "meter", "vertical"]
     timeseries_keywords = ["trend", "over time", "monthly", "year", "history", "change"]
 
@@ -60,21 +60,11 @@ def detect_visualization_intent(message: str) -> str | None:
     msg = message.lower()
     viz_indicators = ["show", "plot", "draw", "map", "visualize", "graph", "chart", "trend", "over time", "location", "observations"]
     
-    has_viz_intent = any(indicator in msg for indicator in viz_indicators)
-    if not has_viz_intent:
+    if not any(indicator in msg for indicator in viz_indicators):
         return None
         
-    map_keywords = ["where", "map", "location", "region", "ocean", "sea", "coordinates", "observations"]
-    profile_keywords = ["depth", "profile", "pressure", "meter", "vertical"]
-    timeseries_keywords = ["trend", "over time", "monthly", "year", "history", "change"]
-    
-    if any(kw in msg for kw in profile_keywords):
-        return "profile"
-    if any(kw in msg for kw in timeseries_keywords):
-        return "timeseries"
-    if any(kw in msg for kw in map_keywords):
-        return "map"
-    return None
+    chart_type = detect_chart_type(message)
+    return chart_type if chart_type != "none" else None
 
 
 def detect_variable(message: str) -> str:
