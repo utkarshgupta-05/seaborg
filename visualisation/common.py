@@ -3,17 +3,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-VARIABLE_LABELS = {
-    "temp_c": "Temperature (°C)",
-    "salinity": "Salinity (PSU)",
-    "oxygen": "Oxygen",
-}
-
-VARIABLE_TITLES = {
-    "temp_c": "Temperature",
-    "salinity": "Salinity",
-    "oxygen": "Oxygen",
-}
+from schema.variables import VARIABLE_LABELS, VARIABLE_TITLES
 
 def empty_figure(message: str = "No data available") -> go.Figure:
     """Returns a standardized empty Plotly figure with a message."""
