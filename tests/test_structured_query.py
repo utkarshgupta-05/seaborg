@@ -139,6 +139,47 @@ class TestRepository:
         assert result["count"] == 42
         assert isinstance(result["avg_temp"], float)
 
+    @patch("structured_query.repository.get_engine")
+    def test_aggregate_stats_for_variable_returns_dict(self, mock_get_engine):
+        from structured_query.repository import aggregate_stats_for_variable
+
+        mock_row = MagicMock()
+        mock_row._mapping = {
+            "count": 42,
+            "avg_depth": 500.0,
+            "min_depth": 450.0,
+            "max_depth": 550.0,
+            "avg_temp": 12.5,
+            "min_temp": 10.0,
+            "max_temp": 15.0,
+            "avg_salinity": 35.2,
+            "min_salinity": 34.0,
+            "max_salinity": 36.0,
+            "avg_oxygen": None,
+            "min_oxygen": None,
+            "max_oxygen": None,
+        }
+
+        mock_conn = MagicMock()
+        mock_conn.__enter__ = MagicMock(return_value=mock_conn)
+        mock_conn.__exit__ = MagicMock(return_value=False)
+        mock_conn.execute.return_value.fetchone.return_value = mock_row
+        mock_engine = MagicMock()
+        mock_engine.connect.return_value = mock_conn
+        mock_get_engine.return_value = mock_engine
+
+        result = aggregate_stats_for_variable("salinity", depth_min=450.0, depth_max=550.0)
+        assert result["count"] == 42
+        assert result["avg_salinity"] == 35.2
+        assert result["min_salinity"] == 34.0
+        assert result["max_salinity"] == 36.0
+
+    def test_aggregate_stats_for_variable_invalid(self):
+        from structured_query.repository import aggregate_stats_for_variable
+        with pytest.raises(ValueError):
+            aggregate_stats_for_variable("invalid_variable_name")
+
+
 
 # ── service tests ─────────────────────────────────────────────────────────────
 
@@ -342,3 +383,12 @@ class TestRepositoryIntegration:
         assert isinstance(stats, dict)
         if stats:
             assert "count" in stats
+
+    def test_aggregate_stats_for_variable_integration(self):
+        from structured_query.repository import aggregate_stats_for_variable
+        stats = aggregate_stats_for_variable("salinity", depth_min=0.0, depth_max=5000.0)
+        assert isinstance(stats, dict)
+        if stats:
+            assert "count" in stats
+            assert "avg_salinity" in stats
+

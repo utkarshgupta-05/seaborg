@@ -192,3 +192,79 @@ def aggregate_stats(
         k: (float(v) if v is not None and k != "count" else int(v) if v is not None else None)
         for k, v in mapping.items()
     }
+
+
+def aggregate_stats_for_variable(
+    variable: str,
+    *,
+    depth_min: Optional[float] = None,
+    depth_max: Optional[float] = None,
+    lat_min: Optional[float] = None,
+    lat_max: Optional[float] = None,
+    lon_min: Optional[float] = None,
+    lon_max: Optional[float] = None,
+) -> dict:
+    """
+    Returns aggregate statistics for a specific requested variable, alongside
+    general depth and secondary context stats for rows matching the filters.
+    Validates variable parameter against VARIABLE_REGISTRY to prevent SQL injection.
+    """
+    if variable not in VARIABLE_REGISTRY:
+        raise ValueError(f"Invalid variable: {variable}")
+
+    conditions = []
+    params: dict = {}
+
+    if depth_min is not None:
+        conditions.append("depth_m >= :depth_min")
+        params["depth_min"] = depth_min
+    if depth_max is not None:
+        conditions.append("depth_m <= :depth_max")
+        params["depth_max"] = depth_max
+    if lat_min is not None:
+        conditions.append("latitude >= :lat_min")
+        params["lat_min"] = lat_min
+    if lat_max is not None:
+        conditions.append("latitude <= :lat_max")
+        params["lat_max"] = lat_max
+    if lon_min is not None:
+        conditions.append("longitude >= :lon_min")
+        params["lon_min"] = lon_min
+    if lon_max is not None:
+        conditions.append("longitude <= :lon_max")
+        params["lon_max"] = lon_max
+
+    where_clause = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+    sql = (
+        f"SELECT "
+        f"  COUNT(*) AS count, "
+        f"  AVG(depth_m) AS avg_depth, "
+        f"  MIN(depth_m) AS min_depth, "
+        f"  MAX(depth_m) AS max_depth, "
+        f"  AVG(temp_c) AS avg_temp, "
+        f"  MIN(temp_c) AS min_temp, "
+        f"  MAX(temp_c) AS max_temp, "
+        f"  AVG(salinity) AS avg_salinity, "
+        f"  MIN(salinity) AS min_salinity, "
+        f"  MAX(salinity) AS max_salinity, "
+        f"  AVG(oxygen) AS avg_oxygen, "
+        f"  MIN(oxygen) AS min_oxygen, "
+        f"  MAX(oxygen) AS max_oxygen "
+        f"FROM argo_profiles "
+        f"{where_clause}".strip()
+    )
+
+    engine = get_engine()
+    with engine.connect() as conn:
+        row = conn.execute(text(sql), params).fetchone()
+
+    if row is None:
+        return {}
+
+    mapping = dict(row._mapping)
+    # Coerce numpy / Decimal types to plain Python primitives
+    return {
+        k: (float(v) if v is not None and k != "count" else int(v) if v is not None else None)
+        for k, v in mapping.items()
+    }
+
