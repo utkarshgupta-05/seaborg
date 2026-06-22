@@ -10,6 +10,7 @@ from dataclasses import dataclass, field
 from typing import Optional
 
 from llm.geo_mapping import detect_region
+from schema.variables import detect_variable
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +23,7 @@ class ParsedQuery:
     lat_max: Optional[float] = None
     lon_min: Optional[float] = None
     lon_max: Optional[float] = None
+    variable: Optional[str] = None
     metadata_filters: dict[str, str] = field(default_factory=dict)
 
     @property
@@ -86,6 +88,11 @@ def parse_query(question: str) -> ParsedQuery:
     all extracted filters and metadata.
     """
     parsed = ParsedQuery()
+
+    # -- Parse Variable --
+    parsed.variable = detect_variable(question)
+    if parsed.variable:
+        logger.info("[PARSER] Extracted variable: %s", parsed.variable)
 
     # -- Parse Depth --
     d_min, d_max = _extract_depth(question)

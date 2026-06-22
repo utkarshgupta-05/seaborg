@@ -67,13 +67,7 @@ def detect_visualization_intent(message: str) -> str | None:
     return chart_type if chart_type != "none" else None
 
 
-def detect_variable(message: str) -> str:
-    msg = message.lower()
-    if "salinity" in msg:
-        return "salinity"
-    if "oxygen" in msg:
-        return "oxygen"
-    return "temp_c"
+
 
 
 def sanitize_plotly_json(obj):
@@ -103,12 +97,11 @@ def sanitize_plotly_json(obj):
     return obj
 
 
-def generate_visualization_payload(message: str, df: pd.DataFrame, float_ids: list[str]):
+def generate_visualization_payload(message: str, df: pd.DataFrame, float_ids: list[str], variable: str):
     viz_type = detect_visualization_intent(message)
     if not viz_type or df.empty:
         return None, None, None, None
         
-    variable = detect_variable(message)
     var_title = VARIABLE_TITLES.get(variable, variable.capitalize())
     
     float_id = float_ids[0] if float_ids else "Unknown"
@@ -161,6 +154,9 @@ def chat(req: ChatRequest) -> ChatResponse:
       HYBRID     → Both paths run; structured data first, LLM narration second
                    (Full merge wired in Phase 9 via hybrid_service)
     """
+    parsed = parse_query(req.message)
+    requested_variable = parsed.variable or "temp_c"
+
     routing = route_query(req.message)
     query_type = routing.intent
     import logging
@@ -191,7 +187,7 @@ def chat(req: ChatRequest) -> ChatResponse:
         }
         
         viz_type, viz_data, chart_title, chart_description = generate_visualization_payload(
-            req.message, rows_df, float_ids
+            req.message, rows_df, float_ids, requested_variable
         )
         
         return ChatResponse(
@@ -229,7 +225,7 @@ def chat(req: ChatRequest) -> ChatResponse:
         float_ids = rows_df["float_id"].unique().tolist() if not rows_df.empty and "float_id" in rows_df.columns else []
 
         viz_type, viz_data, chart_title, chart_description = generate_visualization_payload(
-            req.message, rows_df, float_ids
+            req.message, rows_df, float_ids, requested_variable
         )
 
         return ChatResponse(
@@ -248,7 +244,6 @@ def chat(req: ChatRequest) -> ChatResponse:
     # ── SEMANTIC PATH (default) ──────────────────────────────────────────────
     # Filter weak matches using threshold to prevent hallucinations on irrelevant queries
     threshold = float(os.getenv("FAISS_DISTANCE_THRESHOLD", "1.5"))
-    parsed = parse_query(req.message)
     rows = retrieve(req.message, top_k=5, distance_threshold=threshold, parsed_query=parsed)
     
     # Calculate confidence based on whether we found relevant rows
@@ -265,7 +260,7 @@ def chat(req: ChatRequest) -> ChatResponse:
         chart_type = detect_chart_type(req.message)
         float_ids = rows["float_id"].unique().tolist()
         viz_type, viz_data, chart_title, chart_description = generate_visualization_payload(
-            req.message, rows, float_ids
+            req.message, rows, float_ids, requested_variable
         )
 
     return ChatResponse(
