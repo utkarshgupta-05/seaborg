@@ -18,7 +18,29 @@ load_dotenv()
 
 logger = logging.getLogger(__name__)
 
+from schema.variables import VARIABLE_REGISTRY
 
+_availability_cache = {}
+
+def is_variable_available(variable: str) -> bool:
+    """
+    Checks if a given variable has any non-null data in the database.
+    Caches the result per process. (Note: restart uvicorn to clear cache after ingestion).
+    """
+    if variable not in VARIABLE_REGISTRY:
+        return False
+        
+    if variable in _availability_cache:
+        return _availability_cache[variable]
+        
+    sql = f"SELECT 1 FROM argo_profiles WHERE {variable} IS NOT NULL LIMIT 1"
+    engine = get_engine()
+    with engine.connect() as conn:
+        result = conn.execute(text(sql)).fetchone()
+        
+    is_avail = result is not None
+    _availability_cache[variable] = is_avail
+    return is_avail
 
 
 def query_with_filters(

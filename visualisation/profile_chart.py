@@ -18,9 +18,13 @@ def plot_depth_profile(df: pd.DataFrame, float_id: str, variable: str = "temp_c"
     var_title = VARIABLE_TITLES.get(variable, variable.capitalize())
     var_label = VARIABLE_LABELS.get(variable, variable.capitalize())
     
-    if df is None or df.empty or "float_id" not in df.columns or "depth_m" not in df.columns or variable not in df.columns:
+    if df is None or df.empty or "float_id" not in df.columns or "depth_m" not in df.columns:
         logger.debug("[VIZ] Profile chart generated (empty)")
         return empty_figure()
+
+    if variable not in df.columns:
+        logger.debug("[VIZ] Profile chart generated (missing variable)")
+        return empty_figure("No data available for requested variable.")
 
     # Filter to float_id
     float_df = df[df["float_id"] == float_id].copy()
