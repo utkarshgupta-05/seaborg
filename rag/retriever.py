@@ -109,6 +109,10 @@ def retrieve(user_query: str, top_k: int = 5, distance_threshold: float = None, 
             rows = rows[rows["depth_m"] >= parsed_query.depth_min]
         if parsed_query.depth_max is not None:
             rows = rows[rows["depth_m"] <= parsed_query.depth_max]
+        if parsed_query.date_min is not None:
+            rows = rows[pd.to_datetime(rows["date"]) >= pd.to_datetime(parsed_query.date_min)]
+        if parsed_query.date_max is not None:
+            rows = rows[pd.to_datetime(rows["date"]) <= pd.to_datetime(parsed_query.date_max)]
 
     rows = rows.head(top_k).reset_index(drop=True)
     return _ensure_schema(rows)

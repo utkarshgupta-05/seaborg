@@ -99,6 +99,36 @@ def test_combined_parsing():
     assert parsed.lon_min == -5
     assert parsed.lon_max == 35
 
+def test_unmatched_region():
+    """Test generic ocean/sea words trigger unmatched_region filter."""
+    parsed = parse_query("average temp in the mysterious sea")
+    assert "unmatched_region" in parsed.metadata_filters
+    assert parsed.metadata_filters["unmatched_region"] is True
+    assert "region" not in parsed.metadata_filters
+    assert parsed.lat_min is None
+
+def test_date_in_year():
+    from datetime import date
+    parsed = parse_query("temperature in 2023")
+    assert parsed.date_min == date(2023, 1, 1)
+    assert parsed.date_max == date(2023, 12, 31)
+    assert parsed.metadata_filters["date"] == "2023"
+
+def test_date_since_after_year():
+    from datetime import date
+    for q in ["temperature since 2020", "temperature after 2020"]:
+        parsed = parse_query(q)
+        assert parsed.date_min == date(2020, 1, 1)
+        assert parsed.date_max is None
+        assert parsed.metadata_filters["date"] == "2020–..."
+
+def test_date_before_year():
+    from datetime import date
+    parsed = parse_query("temperature before 1999")
+    assert parsed.date_min is None
+    assert parsed.date_max == date(1999, 12, 31)
+    assert parsed.metadata_filters["date"] == "...–1999"
+
 def test_empty_or_malformed_input():
     """Test parsing logic resilience."""
     parsed = parse_query("average temperature globally")

@@ -7,6 +7,7 @@ No Parquet, no Pandas DataFrame loading from files.
 """
 import logging
 import os
+from datetime import date
 from typing import Optional
 
 import pandas as pd
@@ -51,6 +52,8 @@ def query_with_filters(
     lat_max: Optional[float] = None,
     lon_min: Optional[float] = None,
     lon_max: Optional[float] = None,
+    date_min: Optional[date] = None,
+    date_max: Optional[date] = None,
     limit: int = 500,
 ) -> pd.DataFrame:
     """
@@ -74,7 +77,7 @@ def query_with_filters(
     # Guard: require at least one filter to avoid accidental full scans
     has_filter = any(
         v is not None
-        for v in (depth_min, depth_max, lat_min, lat_max, lon_min, lon_max)
+        for v in (depth_min, depth_max, lat_min, lat_max, lon_min, lon_max, date_min, date_max)
     )
     if not has_filter:
         logger.warning("query_with_filters called with no filters; returning empty.")
@@ -101,6 +104,12 @@ def query_with_filters(
     if lon_max is not None:
         conditions.append("longitude <= :lon_max")
         params["lon_max"] = lon_max
+    if date_min is not None:
+        conditions.append("date >= :date_min")
+        params["date_min"] = date_min
+    if date_max is not None:
+        conditions.append("date <= :date_max")
+        params["date_max"] = date_max
 
     where = " AND ".join(conditions)
     sql = (
@@ -126,6 +135,8 @@ def aggregate_stats(
     lat_max: Optional[float] = None,
     lon_min: Optional[float] = None,
     lon_max: Optional[float] = None,
+    date_min: Optional[date] = None,
+    date_max: Optional[date] = None,
 ) -> dict:
     """
     Returns aggregate statistics for rows matching the given filters.
@@ -164,6 +175,12 @@ def aggregate_stats(
     if lon_max is not None:
         conditions.append("longitude <= :lon_max")
         params["lon_max"] = lon_max
+    if date_min is not None:
+        conditions.append("date >= :date_min")
+        params["date_min"] = date_min
+    if date_max is not None:
+        conditions.append("date <= :date_max")
+        params["date_max"] = date_max
 
     where_clause = f"WHERE {' AND '.join(conditions)}" if conditions else ""
     sql = (
@@ -203,6 +220,8 @@ def aggregate_stats_for_variable(
     lat_max: Optional[float] = None,
     lon_min: Optional[float] = None,
     lon_max: Optional[float] = None,
+    date_min: Optional[date] = None,
+    date_max: Optional[date] = None,
 ) -> dict:
     """
     Returns aggregate statistics for a specific requested variable, alongside
@@ -233,6 +252,12 @@ def aggregate_stats_for_variable(
     if lon_max is not None:
         conditions.append("longitude <= :lon_max")
         params["lon_max"] = lon_max
+    if date_min is not None:
+        conditions.append("date >= :date_min")
+        params["date_min"] = date_min
+    if date_max is not None:
+        conditions.append("date <= :date_max")
+        params["date_max"] = date_max
 
     where_clause = f"WHERE {' AND '.join(conditions)}" if conditions else ""
     sql = (

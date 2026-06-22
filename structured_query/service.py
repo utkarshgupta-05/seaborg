@@ -68,6 +68,8 @@ def answer(question: str) -> dict:
         lat_max=parsed.lat_max,
         lon_min=parsed.lon_min,
         lon_max=parsed.lon_max,
+        date_min=parsed.date_min,
+        date_max=parsed.date_max,
     )
 
     count = len(rows_df)
@@ -86,6 +88,8 @@ def answer(question: str) -> dict:
             lat_max=parsed.lat_max,
             lon_min=parsed.lon_min,
             lon_max=parsed.lon_max,
+            date_min=parsed.date_min,
+            date_max=parsed.date_max,
         )
     else:
         stats = repository.aggregate_stats_for_variable(
@@ -96,6 +100,8 @@ def answer(question: str) -> dict:
             lat_max=parsed.lat_max,
             lon_min=parsed.lon_min,
             lon_max=parsed.lon_max,
+            date_min=parsed.date_min,
+            date_max=parsed.date_max,
         )
 
     summary = _build_summary(count, stats, requested_variable)

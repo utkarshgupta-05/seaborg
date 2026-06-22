@@ -7,6 +7,7 @@ Extracts depth constraints and geographic region bounds.
 import logging
 import re
 from dataclasses import dataclass, field
+from datetime import date
 from typing import Optional
 
 from llm.geo_mapping import detect_region
@@ -24,6 +25,8 @@ class ParsedQuery:
     lon_min: Optional[float] = None
     lon_max: Optional[float] = None
     variable: Optional[str] = None
+    date_min: Optional[date] = None
+    date_max: Optional[date] = None
     metadata_filters: dict[str, str] = field(default_factory=dict)
 
     @property
@@ -31,7 +34,8 @@ class ParsedQuery:
         return any(v is not None for v in (
             self.depth_min, self.depth_max,
             self.lat_min, self.lat_max,
-            self.lon_min, self.lon_max
+            self.lon_min, self.lon_max,
+            self.date_min, self.date_max
         ))
 
 
@@ -82,6 +86,34 @@ def _extract_depth(question: str) -> tuple[Optional[float], Optional[float]]:
     return None, None
 
 
+def _extract_date(question: str) -> tuple[Optional[date], Optional[date]]:
+    """
+    Parses year constraints from a natural language question.
+    Only supports unambiguous patterns for now.
+    """
+    q = question.lower()
+    
+    # "in {year}"
+    m = re.search(r"\bin\s+(19\d{2}|20\d{2})\b", q)
+    if m:
+        year = int(m.group(1))
+        return date(year, 1, 1), date(year, 12, 31)
+
+    # "since {year}" / "after {year}"
+    m = re.search(r"\b(?:since|after)\s+(19\d{2}|20\d{2})\b", q)
+    if m:
+        year = int(m.group(1))
+        return date(year, 1, 1), None
+
+    # "before {year}"
+    m = re.search(r"\bbefore\s+(19\d{2}|20\d{2})\b", q)
+    if m:
+        year = int(m.group(1))
+        return None, date(year, 12, 31)
+
+    return None, None
+
+
 def parse_query(question: str) -> ParsedQuery:
     """
     Parses a natural language question into a ParsedQuery containing
@@ -103,6 +135,22 @@ def parse_query(question: str) -> ParsedQuery:
         hi = f"{d_max:.0f}" if d_max is not None else "∞"
         parsed.metadata_filters["depth"] = f"{lo}–{hi}m"
         logger.info("[PARSER] Extracted depth: %s–%sm", lo, hi)
+
+    # -- Parse Date --
+    date_min, date_max = _extract_date(question)
+    if date_min is not None or date_max is not None:
+        parsed.date_min = date_min
+        parsed.date_max = date_max
+        d_lo = date_min.year if date_min else ""
+        d_hi = date_max.year if date_max else ""
+        if date_min and date_max and date_min.year == date_max.year:
+            parsed.metadata_filters["date"] = f"{date_min.year}"
+            logger.info("[PARSER] Extracted date: %s", date_min.year)
+        else:
+            lo_str = f"{d_lo}" if d_lo else "..."
+            hi_str = f"{d_hi}" if d_hi else "..."
+            parsed.metadata_filters["date"] = f"{lo_str}–{hi_str}"
+            logger.info("[PARSER] Extracted date: %s–%s", lo_str, hi_str)
 
     # -- Parse Region --
     name, bounds = detect_region(question)
