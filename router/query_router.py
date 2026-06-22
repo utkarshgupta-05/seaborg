@@ -107,7 +107,7 @@ _VIZ_KEYWORDS = [
     # Require explicit intent to visualize — drop generic words like "show"/"profile"
     # that also appear in semantic questions.
     "plot", "chart", "graph", "map", "location",
-    "trend", "over time", "visualize", "visualise", "draw",
+    "visualize", "visualise", "draw",
 ]
 
 # Depth regex — matches "500m", "500 m", "500 meters", "around 500m" etc.
