@@ -43,10 +43,10 @@ def detect_chart_type(message: str) -> str:
     profile_keywords = ["depth", "profile", "pressure", "meter", "vertical"]
     timeseries_keywords = ["trend", "over time", "monthly", "year", "history", "change"]
 
-    if any(kw in msg for kw in profile_keywords):
-        return "profile"
     if any(kw in msg for kw in timeseries_keywords):
         return "timeseries"
+    if any(kw in msg for kw in profile_keywords):
+        return "profile"
     if any(kw in msg for kw in map_keywords):
         return "map"
     return "none"
@@ -122,8 +122,8 @@ def generate_visualization_payload(message: str, df: pd.DataFrame, float_ids: li
         else:
             title = "ARGO Float Positions"
         
-        fig = plot_float_map(df, title=title)
-        description = "Geospatial scatter map of ARGO float observations colored by temperature (°C)."
+        fig = plot_float_map(df, title=title, variable=variable)
+        description = f"Geospatial scatter map of ARGO float observations colored by {var_title}."
         
     elif viz_type == "profile":
         title = f"{var_title} Profile — Float {float_id}"
