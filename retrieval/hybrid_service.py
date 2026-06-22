@@ -61,7 +61,8 @@ def hybrid_answer(question: str) -> dict:
     # 4. Build Context-Fused Prompt
     # We pass only the semantic rows as "Supporting Records" so the LLM doesn't double-count
     # the structured data, but we return combined_df for the UI visualisations.
-    prompt = build_hybrid_prompt(question, struct_summary, semantic_rows)
+    variable = parsed.variable if parsed.variable else "temp_c"
+    prompt = build_hybrid_prompt(question, struct_summary, semantic_rows, variable)
 
     # Calculate hybrid confidence based on retrieval success
     # If we have structured rows, we are confident. If we lack semantic context, we just lower it a bit.

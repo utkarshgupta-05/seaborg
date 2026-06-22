@@ -30,7 +30,7 @@ Question: {question}
 
 Answer:"""
 
-def build_hybrid_prompt(question: str, structured_summary: str, semantic_rows: pd.DataFrame) -> str:
+def build_hybrid_prompt(question: str, structured_summary: str, semantic_rows: pd.DataFrame, variable: str = "temp_c") -> str:
     """
     Constructs a grounded prompt containing both authoritative aggregated facts
     and specific supporting rows for context.
@@ -42,11 +42,21 @@ def build_hybrid_prompt(question: str, structured_summary: str, semantic_rows: p
         limited = semantic_rows.head(5)
         bullets = []
         for _, row in limited.iterrows():
-            bullets.append(
-                f"• Float {row.get('float_id', 'Unknown')} | {row.get('date', 'Unknown')} | "
-                f"{row.get('depth_m', 0):.0f}m | {row.get('temp_c', 0):.1f}°C | "
-                f"{row.get('salinity', 0):.2f} PSU"
-            )
+            depth = f"{row.get('depth_m', float('nan')):.0f}m" if pd.notna(row.get('depth_m')) else "N/A"
+            temp = f"{row.get('temp_c', float('nan')):.1f}°C" if pd.notna(row.get('temp_c')) else "N/A"
+            sal = f"{row.get('salinity', float('nan')):.2f} PSU" if pd.notna(row.get('salinity')) else "N/A"
+            oxy = f"{row.get('oxygen', float('nan')):.2f}" if pd.notna(row.get('oxygen')) else "N/A"
+
+            if variable == "salinity":
+                bullet = f"• Float {row.get('float_id', 'Unknown')} | {row.get('date', 'Unknown')} | Depth: {depth} | Salinity: {sal} | (Temp: {temp})"
+            elif variable == "oxygen":
+                bullet = f"• Float {row.get('float_id', 'Unknown')} | {row.get('date', 'Unknown')} | Depth: {depth} | Oxygen: {oxy} | (Temp: {temp})"
+            elif variable == "depth_m":
+                bullet = f"• Float {row.get('float_id', 'Unknown')} | {row.get('date', 'Unknown')} | Depth: {depth} | (Temp: {temp})"
+            else:
+                bullet = f"• Float {row.get('float_id', 'Unknown')} | {row.get('date', 'Unknown')} | Depth: {depth} | Temp: {temp} | (Salinity: {sal})"
+                
+            bullets.append(bullet)
         context = "\n".join(bullets) if bullets else "No supporting records retrieved."
         
     return HYBRID_PROMPT.format(

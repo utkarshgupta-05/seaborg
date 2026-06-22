@@ -270,7 +270,7 @@ def chat(req: ChatRequest) -> ChatResponse:
         float_ids = []
         viz_type, viz_data, chart_title, chart_description = None, None, None, None
     else:
-        answer, sql = answer_query(req.message, rows)
+        answer, sql = answer_query(req.message, rows, requested_variable)
         chart_type = detect_chart_type(req.message)
         float_ids = rows["float_id"].unique().tolist()
         viz_type, viz_data, chart_title, chart_description = generate_visualization_payload(

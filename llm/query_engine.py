@@ -12,7 +12,7 @@ load_dotenv()
 
 import concurrent.futures
 
-def answer_query(question: str, context_rows: pd.DataFrame) -> tuple[str, str]:
+def answer_query(question: str, context_rows: pd.DataFrame, variable: str = "temp_c") -> tuple[str, str]:
     """
     Runs the full RAG + LLM call and returns a strictly data-grounded answer.
 
@@ -23,6 +23,7 @@ def answer_query(question: str, context_rows: pd.DataFrame) -> tuple[str, str]:
     Args:
         question: The user's natural language question.
         context_rows: DataFrame of retrieved ARGO rows (already filtered).
+        variable: The primary variable requested.
 
     Returns:
         A tuple (answer_text, sql_string).
@@ -43,7 +44,7 @@ def answer_query(question: str, context_rows: pd.DataFrame) -> tuple[str, str]:
     def get_answer():
         client = Groq(api_key=os.getenv("GROQ_API_KEY"))
         model = os.getenv("LLM_MODEL", "llama-3.1-8b-instant")
-        prompt = build_prompt(question, context_rows)
+        prompt = build_prompt(question, context_rows, variable)
         response = client.chat.completions.create(
             model=model,
             messages=[{"role": "user", "content": prompt}],
