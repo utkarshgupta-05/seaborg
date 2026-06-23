@@ -158,28 +158,34 @@ def chat(req: ChatRequest) -> ChatResponse:
     requested_variable = parsed.variable or "temp_c"
 
     routing = route_query(req.message)
-    
-    from structured_query.repository import is_variable_available
-    from schema.variables import VARIABLE_LABELS
-    if not is_variable_available(requested_variable):
-        var_label = VARIABLE_LABELS.get(requested_variable, requested_variable)
-        return ChatResponse(
-            answer=f"I don't have any data for {var_label} in the current database. I only have access to temperature and depth profiles right now.",
-            chart_type="none",
-            float_ids=[],
-            sql_used="-- Short-circuited: No data for requested variable",
-            confidence=1.0,
-            metadata={"error": "variable_unavailable", "variable": requested_variable}
-        )
-
     query_type = routing.intent
+
     import logging
-    logging.getLogger(__name__).info(
+    logger = logging.getLogger(__name__)
+    logger.info(
         "[ROUTER] %s | structured_signals=%s | semantic_signals=%s",
         query_type.value.upper(),
         routing.structured_signals,
         routing.semantic_signals,
     )
+    
+    from structured_query.repository import is_variable_available
+    from schema.variables import VARIABLE_LABELS, DEFAULT_VARIABLE
+    
+    if query_type in (QueryType.STRUCTURED, QueryType.HYBRID) and requested_variable != DEFAULT_VARIABLE:
+        try:
+            if not is_variable_available(requested_variable):
+                var_label = VARIABLE_LABELS.get(requested_variable, requested_variable)
+                return ChatResponse(
+                    answer=f"I don't have any data for {var_label} in the current database. I only have access to temperature and depth profiles right now.",
+                    chart_type="none",
+                    float_ids=[],
+                    sql_used="-- Short-circuited: No data for requested variable",
+                    confidence=1.0,
+                    metadata={"error": "variable_unavailable", "variable": requested_variable}
+                )
+        except Exception as e:
+            logger.warning("Failed to check variable availability: %s", e)
 
     if query_type == QueryType.STRUCTURED:
         result = answer_structured_query(req.message)

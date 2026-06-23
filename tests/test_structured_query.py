@@ -187,7 +187,7 @@ class TestService:
     """Tests for structured_query.service (orchestration layer)."""
 
     @patch("structured_query.service.repository.query_with_filters")
-    @patch("structured_query.service.repository.aggregate_stats")
+    @patch("structured_query.service.repository.aggregate_stats_for_variable")
     def test_depth_query_returns_summary(self, mock_stats, mock_query):
         from structured_query.service import answer
 
@@ -202,7 +202,7 @@ class TestService:
         assert not result["rows"].empty
 
     @patch("structured_query.service.repository.query_with_filters")
-    @patch("structured_query.service.repository.aggregate_stats")
+    @patch("structured_query.service.repository.aggregate_stats_for_variable")
     def test_region_query_sets_region_metadata(self, mock_stats, mock_query):
         from structured_query.service import answer
 
@@ -215,7 +215,7 @@ class TestService:
         assert "Atlantic" in result["metadata"]["filters"]["region"]
 
     @patch("structured_query.service.repository.query_with_filters")
-    @patch("structured_query.service.repository.aggregate_stats")
+    @patch("structured_query.service.repository.aggregate_stats_for_variable")
     def test_empty_results_returns_safe_message(self, mock_stats, mock_query):
         from structured_query.service import answer
 
@@ -228,7 +228,7 @@ class TestService:
         assert result["metadata"]["record_count"] == 0
         assert "No matching" in result["summary"]
 
-    @patch("structured_query.service.repository.aggregate_stats")
+    @patch("structured_query.service.repository.aggregate_stats_for_variable")
     def test_no_filter_question_returns_safe_message(self, mock_stats):
         """A question with no parseable filters returns empty safely if DB has no stats."""
         from structured_query.service import answer
@@ -241,7 +241,7 @@ class TestService:
         assert result["metadata"]["record_count"] == 0
         assert "No matching" in result["summary"]
 
-    @patch("structured_query.service.repository.aggregate_stats")
+    @patch("structured_query.service.repository.aggregate_stats_for_variable")
     def test_no_filter_question_with_global_stats(self, mock_stats):
         """A question with no filters returns global stats but empty rows."""
         from structured_query.service import answer
@@ -255,7 +255,7 @@ class TestService:
         assert "Found 150 matching observations." in result["summary"]
 
     @patch("structured_query.service.repository.query_with_filters")
-    @patch("structured_query.service.repository.aggregate_stats")
+    @patch("structured_query.service.repository.aggregate_stats_for_variable")
     def test_combined_depth_and_region(self, mock_stats, mock_query):
         from structured_query.service import answer
 
@@ -269,7 +269,7 @@ class TestService:
         assert "region" in filters
 
     @patch("structured_query.service.repository.query_with_filters")
-    @patch("structured_query.service.repository.aggregate_stats")
+    @patch("structured_query.service.repository.aggregate_stats_for_variable")
     def test_summary_includes_temp_stats(self, mock_stats, mock_query):
         from structured_query.service import answer
 
@@ -288,7 +288,7 @@ class TestEngine:
     """Tests for the public answer_structured_query entry point."""
 
     @patch("structured_query.service.repository.query_with_filters")
-    @patch("structured_query.service.repository.aggregate_stats")
+    @patch("structured_query.service.repository.aggregate_stats_for_variable")
     def test_engine_returns_same_shape(self, mock_stats, mock_query):
         from structured_query.engine import answer_structured_query
 
