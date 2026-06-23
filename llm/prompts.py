@@ -40,7 +40,10 @@ Return ONLY the SQL query. No explanation. No markdown. No semicolon at the end.
 Question: {question}"""
 
 
-def build_prompt(question: str, context_rows: pd.DataFrame, variable: str = "temp_c") -> str:
+from schema.variables import DEFAULT_VARIABLE
+from .formatters import format_row
+
+def build_prompt(question: str, context_rows: pd.DataFrame, variable: str = DEFAULT_VARIABLE) -> str:
     """
     Formats context_rows as a bullet list and fills CHAT_PROMPT.
 
@@ -64,21 +67,7 @@ def build_prompt(question: str, context_rows: pd.DataFrame, variable: str = "tem
 
     bullets = []
     for _, row in limited.iterrows():
-        depth = f"{row['depth_m']:.0f}m" if pd.notna(row.get('depth_m')) else "N/A"
-        temp = f"{row['temp_c']:.1f}°C" if pd.notna(row.get('temp_c')) else "N/A"
-        sal = f"{row['salinity']:.2f} PSU" if pd.notna(row.get('salinity')) else "N/A"
-        oxy = f"{row['oxygen']:.2f}" if pd.notna(row.get('oxygen')) else "N/A"
-
-        if variable == "salinity":
-            bullet = f"• Float {row['float_id']} | {row['date']} | Depth: {depth} | Salinity: {sal} | (Temp: {temp})"
-        elif variable == "oxygen":
-            bullet = f"• Float {row['float_id']} | {row['date']} | Depth: {depth} | Oxygen: {oxy} | (Temp: {temp})"
-        elif variable == "depth_m":
-            bullet = f"• Float {row['float_id']} | {row['date']} | Depth: {depth} | (Temp: {temp})"
-        else:
-            bullet = f"• Float {row['float_id']} | {row['date']} | Depth: {depth} | Temp: {temp} | (Salinity: {sal})"
-            
-        bullets.append(bullet)
+        bullets.append(format_row(row, variable))
 
     context = "\n".join(bullets) if bullets else "No records retrieved."
 

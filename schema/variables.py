@@ -1,6 +1,8 @@
 import re
 from typing import Optional
 
+DEFAULT_VARIABLE = "temp_c"
+
 VARIABLE_REGISTRY = {
     "temp_c": {
         "label": "Temperature (°C)",
