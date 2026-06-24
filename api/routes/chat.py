@@ -276,6 +276,18 @@ def chat(req: ChatRequest) -> ChatResponse:
         float_ids = []
         viz_type, viz_data, chart_title, chart_description = None, None, None, None
     else:
+        from schema.variables import has_variable_data, VARIABLE_LABELS
+        if requested_variable != DEFAULT_VARIABLE and not has_variable_data(rows, requested_variable):
+            var_label = VARIABLE_LABELS.get(requested_variable, requested_variable)
+            return ChatResponse(
+                answer=f"No {var_label} measurements were found among the retrieved observations for this query.",
+                chart_type="none",
+                float_ids=[],
+                sql_used="-- Short-circuited: No data for requested variable in retrieved rows",
+                confidence=1.0,
+                metadata={"error": "variable_unavailable", "variable": requested_variable}
+            )
+            
         answer, sql = answer_query(req.message, rows, requested_variable)
         chart_type = detect_chart_type(req.message)
         float_ids = rows["float_id"].unique().tolist()

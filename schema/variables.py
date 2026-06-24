@@ -66,3 +66,11 @@ def detect_variable(question: str) -> Optional[str]:
 
             
     return None
+
+def has_variable_data(df, variable: str) -> bool:
+    """
+    Returns True if `variable` is a real column in `df` with at least one
+    non-null value. Use this on already-retrieved/filtered rows — it is
+    the per-query complement to is_variable_available()'s dataset-wide check.
+    """
+    return variable in df.columns and df[variable].notna().any()

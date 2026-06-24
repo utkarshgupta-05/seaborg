@@ -58,10 +58,23 @@ def hybrid_answer(question: str) -> dict:
         if subset_cols:
             combined_df = combined_df.drop_duplicates(subset=subset_cols, keep="first")
 
+    variable = parsed.variable if parsed.variable else "temp_c"
+
+    from schema.variables import has_variable_data, VARIABLE_LABELS, DEFAULT_VARIABLE
+    if variable != DEFAULT_VARIABLE and not has_variable_data(combined_df, variable):
+        var_label = VARIABLE_LABELS.get(variable, variable)
+        metadata["error"] = "variable_unavailable"
+        metadata["variable"] = variable
+        return {
+            "summary": f"No {var_label} measurements were found among the retrieved observations for this query.",
+            "rows": pd.DataFrame(),
+            "metadata": metadata,
+            "sql": "-- Short-circuited: No data for requested variable in retrieved rows"
+        }
+
     # 4. Build Context-Fused Prompt
     # We pass only the semantic rows as "Supporting Records" so the LLM doesn't double-count
     # the structured data, but we return combined_df for the UI visualisations.
-    variable = parsed.variable if parsed.variable else "temp_c"
     prompt = build_hybrid_prompt(question, struct_summary, semantic_rows, variable)
 
     # Calculate hybrid confidence based on retrieval success
