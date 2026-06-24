@@ -58,8 +58,8 @@ class TestRepository:
 
     @patch("structured_query.repository.get_engine")
     def test_aggregate_stats_no_filters(self, mock_get_engine):
-        """aggregate_stats with no filters should run a global query (no WHERE)."""
-        from structured_query.repository import aggregate_stats
+        """aggregate_stats_for_variable with no filters should run a global query (no WHERE)."""
+        from structured_query.repository import aggregate_stats_for_variable
 
         mock_row = MagicMock()
         mock_row._mapping = _make_stats(count=100)
@@ -72,7 +72,7 @@ class TestRepository:
         mock_engine.connect.return_value = mock_conn
         mock_get_engine.return_value = mock_engine
 
-        result = aggregate_stats()
+        result = aggregate_stats_for_variable("temp_c")
         assert result["count"] == 100
         # Check that we executed query without a WHERE clause
         sql_called = str(mock_conn.execute.call_args[0][0])

@@ -113,7 +113,7 @@ def query_with_filters(
 
     where = " AND ".join(conditions)
     sql = (
-        f"SELECT float_id, date, latitude, longitude, depth_m, temp_c, salinity, oxygen "
+        f"SELECT float_id, date, latitude, longitude, depth_m, temp_c, salinity, oxygen, chlorophyll, nitrate "
         f"FROM argo_profiles "
         f"WHERE {where} "
         f"ORDER BY date DESC, depth_m "
@@ -274,7 +274,13 @@ def aggregate_stats_for_variable(
         f"  MAX(salinity) AS max_salinity, "
         f"  AVG(oxygen) AS avg_oxygen, "
         f"  MIN(oxygen) AS min_oxygen, "
-        f"  MAX(oxygen) AS max_oxygen "
+        f"  MAX(oxygen) AS max_oxygen, "
+        f"  AVG(chlorophyll) AS avg_chlorophyll, "
+        f"  MIN(chlorophyll) AS min_chlorophyll, "
+        f"  MAX(chlorophyll) AS max_chlorophyll, "
+        f"  AVG(nitrate) AS avg_nitrate, "
+        f"  MIN(nitrate) AS min_nitrate, "
+        f"  MAX(nitrate) AS max_nitrate "
         f"FROM argo_profiles "
         f"{where_clause}".strip()
     )

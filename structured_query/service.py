@@ -16,6 +16,14 @@ from structured_query.parser import parse_query
 logger = logging.getLogger(__name__)
 
 
+_STAT_KEY = {
+    "temp_c": ("temp", "°C", "Temperature"),
+    "salinity": ("salinity", " PSU", "Salinity"),
+    "oxygen": ("oxygen", "", "Oxygen"),
+    "chlorophyll": ("chlorophyll", "", "Chlorophyll"),
+    "nitrate": ("nitrate", "", "Nitrate"),
+}
+
 # ── Service entry point ───────────────────────────────────────────────────────
 
 def answer(question: str) -> dict:
@@ -40,11 +48,7 @@ def answer(question: str) -> dict:
     if not parsed.has_filters:
         logger.info("[STRUCTURED] No filters found. Performing global aggregation query.")
         
-        from unittest.mock import Mock
-        if isinstance(repository.aggregate_stats, Mock):
-            stats = repository.aggregate_stats()
-        else:
-            stats = repository.aggregate_stats_for_variable(requested_variable)
+        stats = repository.aggregate_stats_for_variable(requested_variable)
             
         if not stats or stats.get("count", 0) == 0:
             return _empty_response(parsed.metadata_filters)
@@ -128,34 +132,7 @@ def _build_summary(count: int, stats: dict, variable: str) -> str:
             )
 
     # Lead with requested variable's stats
-    if variable == "temp_c":
-        if stats.get("avg_temp") is not None:
-            parts.append(
-                f"\nTemperature range:\n{stats['min_temp']:.2f}°C–{stats['max_temp']:.2f}°C"
-                f"\n\nAverage temperature:\n{stats['avg_temp']:.2f}°C"
-            )
-        else:
-            parts.append("\nTemperature range:\nN/A\n\nAverage temperature:\nN/A")
-            
-    elif variable == "salinity":
-        if stats.get("avg_salinity") is not None:
-            parts.append(
-                f"\nSalinity range:\n{stats['min_salinity']:.2f} PSU–{stats['max_salinity']:.2f} PSU"
-                f"\n\nAverage salinity:\n{stats['avg_salinity']:.2f} PSU"
-            )
-        else:
-            parts.append("\nSalinity range:\nN/A\n\nAverage salinity:\nN/A")
-            
-    elif variable == "oxygen":
-        if stats.get("avg_oxygen") is not None:
-            parts.append(
-                f"\nOxygen range:\n{stats['min_oxygen']:.2f}–{stats['max_oxygen']:.2f}"
-                f"\n\nAverage oxygen:\n{stats['avg_oxygen']:.2f}"
-            )
-        else:
-            parts.append("\nOxygen range:\nN/A\n\nAverage oxygen:\nN/A")
-            
-    elif variable == "depth_m":
+    if variable == "depth_m":
         if stats.get("min_depth") is not None and stats.get("max_depth") is not None:
             parts.append(
                 f"\nDepth range:\n{stats['min_depth']:.0f}m–{stats['max_depth']:.0f}m"
@@ -163,16 +140,20 @@ def _build_summary(count: int, stats: dict, variable: str) -> str:
             if stats.get("avg_depth") is not None:
                 parts.append(f"\nAverage depth:\n{stats['avg_depth']:.1f}m")
         else:
-            parts.append("\nDepth range:\nN/A\n\nAverage depth:\nN/A")
+            parts.append(f"\nNo Depth measurements were found among the {count} matching observations.")
+    elif variable in _STAT_KEY:
+        key, unit, title = _STAT_KEY[variable]
+        if stats.get(f"avg_{key}") is not None:
+            parts.append(
+                f"\n{title} range:\n{stats[f'min_{key}']:.2f}{unit}–{stats[f'max_{key}']:.2f}{unit}"
+                f"\n\nAverage {title.lower()}:\n{stats[f'avg_{key}']:.2f}{unit}"
+            )
+        else:
+            parts.append(f"\nNo {title} measurements were found among the {count} matching observations.")
 
     # Add other variable stats as secondary context (only if they are NOT the requested variable)
-    if variable != "temp_c" and stats.get("avg_temp") is not None:
-        parts.append(f"\nAverage temperature:\n{stats['avg_temp']:.2f}°C")
-        
-    if variable != "salinity" and stats.get("avg_salinity") is not None:
-        parts.append(f"\nAverage salinity:\n{stats['avg_salinity']:.2f} PSU")
-
-    if variable != "oxygen" and stats.get("avg_oxygen") is not None:
-        parts.append(f"\nAverage oxygen:\n{stats['avg_oxygen']:.2f}")
+    for v_key, (key, unit, title) in _STAT_KEY.items():
+        if variable != v_key and stats.get(f"avg_{key}") is not None:
+            parts.append(f"\nAverage {title.lower()}:\n{stats[f'avg_{key}']:.2f}{unit}")
 
     return "\n".join(parts)
