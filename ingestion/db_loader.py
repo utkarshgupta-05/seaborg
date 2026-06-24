@@ -62,7 +62,10 @@ def save_to_parquet(df: pd.DataFrame) -> None:
     if df.empty:
         if not target.exists():
             # Preserve pipeline contract: create an empty parquet only when none exists yet.
-            empty_df = pd.DataFrame(columns=["float_id", "date", "latitude", "longitude", "depth_m", "temp_c", "salinity"])
+            empty_df = pd.DataFrame(columns=[
+                "float_id", "date", "latitude", "longitude", "depth_m", 
+                "temp_c", "salinity", "oxygen", "chlorophyll", "nitrate"
+            ])
             empty_df.to_parquet(target, index=False)
             logger.info(f"Wrote 0 rows to Parquet: {target}")
         else:

@@ -30,15 +30,66 @@ def _extract_2d_or_nan(dataset: xr.Dataset, var_name: str, shape: tuple[int, int
     return values_2d
 
 
-def _extract_first_available(
-    dataset: xr.Dataset, candidates: list[str], shape: tuple[int, int]
-) -> tuple[np.ndarray, str | None]:
-    """Returns the first available 2D variable from candidates and its source name."""
-    for name in candidates:
-        if name in dataset.variables:
-            arr = _extract_2d_or_nan(dataset, name, shape)
-            return arr, name
-    return np.full(shape, np.nan, dtype=float), None
+def _extract_merged_array_with_qc(
+    dataset: xr.Dataset, base_name: str, shape: tuple[int, int]
+) -> tuple[np.ndarray, np.ndarray, bool]:
+    """
+    Extracts and merges adjusted and raw variables element-wise.
+    Extracts corresponding QC flags exactly matching the value source.
+    """
+    has_any = False
+    adj_val = np.full(shape, np.nan, dtype=float)
+    raw_val = np.full(shape, np.nan, dtype=float)
+    adj_qc = np.full(shape, b"1", dtype=object)  # default good
+    raw_qc = np.full(shape, b"1", dtype=object)
+
+    adj_name = f"{base_name}_ADJUSTED"
+    adj_qc_name = f"{base_name}_ADJUSTED_QC"
+    raw_qc_name = f"{base_name}_QC"
+
+    if adj_name in dataset.variables:
+        adj_val = _extract_2d_or_nan(dataset, adj_name, shape)
+        has_any = True
+        if adj_qc_name in dataset.variables:
+            adj_qc = np.asarray(dataset[adj_qc_name].values)
+            if adj_qc.ndim == 1:
+                adj_qc = adj_qc[:, np.newaxis]
+            if adj_qc.shape != shape and adj_qc.T.shape == shape:
+                adj_qc = adj_qc.T
+
+    if base_name in dataset.variables:
+        raw_val = _extract_2d_or_nan(dataset, base_name, shape)
+        has_any = True
+        if raw_qc_name in dataset.variables:
+            raw_qc = np.asarray(dataset[raw_qc_name].values)
+            if raw_qc.ndim == 1:
+                raw_qc = raw_qc[:, np.newaxis]
+            if raw_qc.shape != shape and raw_qc.T.shape == shape:
+                raw_qc = raw_qc.T
+
+    # Element-wise merge: use raw if adj is NaN, otherwise use adj
+    mask_use_raw = np.isnan(adj_val)
+    merged_val = np.where(mask_use_raw, raw_val, adj_val)
+    
+    # Broadcast QC to match shape exactly before where()
+    if adj_qc.shape != shape:
+        adj_qc = np.full(shape, b"1", dtype=object)
+    if raw_qc.shape != shape:
+        raw_qc = np.full(shape, b"1", dtype=object)
+        
+    merged_qc = np.where(mask_use_raw, raw_qc, adj_qc)
+
+    # Normalize QC strings
+    def norm_qc(x):
+        s = str(x).strip()
+        if s.startswith("b'"):
+            s = s[2:-1]
+        s = s.replace("'", "")
+        return s if s else "1"
+    
+    merged_qc_flat = np.array([norm_qc(x) for x in merged_qc.reshape(-1)], dtype=object)
+
+    return merged_val, merged_qc_flat, has_any
 
 
 def _normalize_numeric(values_2d: np.ndarray) -> np.ndarray:
@@ -56,33 +107,32 @@ def _normalize_numeric(values_2d: np.ndarray) -> np.ndarray:
 def parse_netcdf(filepath: str) -> tuple[pd.DataFrame, xr.Dataset]:
     """
     Parses one ARGO NetCDF file into a cleaned tabular DataFrame and the original dataset.
-
-    Args:
-        filepath: Path to a local `.nc` file in ARGO format.
-
-    Returns:
-        A tuple `(cleaned_df, original_dataset)` where:
-        - `cleaned_df` contains columns matching the DB schema subset:
-          `float_id`, `date`, `latitude`, `longitude`, `depth_m`, `temp_c`, `salinity`.
-        - `original_dataset` is the open xarray Dataset for downstream QC checks.
-
-    Side effects:
-        Opens the NetCDF file from disk.
     """
     dataset = xr.open_dataset(filepath)
 
-    if "PRES" in dataset.variables:
-        pres_2d = _normalize_numeric(_to_2d(np.asarray(dataset["PRES"].values)))
-    elif "PRES_ADJUSTED" in dataset.variables:
-        pres_2d = _normalize_numeric(_to_2d(np.asarray(dataset["PRES_ADJUSTED"].values)))
-    else:
-        raise ValueError("Could not find PRES or PRES_ADJUSTED in dataset.")
-    n_prof, n_levels = pres_2d.shape
+    if "N_PROF" not in dataset.dims or "N_LEVELS" not in dataset.dims:
+        raise ValueError(f"Incompatible dimensions in {filepath}: Missing N_PROF or N_LEVELS.")
 
-    temp_2d, _ = _extract_first_available(dataset, ["TEMP", "TEMP_ADJUSTED"], (n_prof, n_levels))
-    sal_2d, sal_source = _extract_first_available(dataset, ["PSAL", "PSAL_ADJUSTED"], (n_prof, n_levels))
+    n_prof = dataset.dims["N_PROF"]
+    n_levels = dataset.dims["N_LEVELS"]
+
+    if "PRES" not in dataset.variables and "PRES_ADJUSTED" not in dataset.variables:
+        raise ValueError("Could not find PRES or PRES_ADJUSTED in dataset.")
+
+    pres_2d, pres_qc, _ = _extract_merged_array_with_qc(dataset, "PRES", (n_prof, n_levels))
+    pres_2d = _normalize_numeric(pres_2d)
+
+    temp_2d, temp_qc, _ = _extract_merged_array_with_qc(dataset, "TEMP", (n_prof, n_levels))
+    sal_2d, sal_qc, has_sal = _extract_merged_array_with_qc(dataset, "PSAL", (n_prof, n_levels))
+    doxy_2d, doxy_qc, _ = _extract_merged_array_with_qc(dataset, "DOXY", (n_prof, n_levels))
+    chla_2d, chla_qc, _ = _extract_merged_array_with_qc(dataset, "CHLA", (n_prof, n_levels))
+    nitrate_2d, nitrate_qc, _ = _extract_merged_array_with_qc(dataset, "NITRATE", (n_prof, n_levels))
+
     temp_2d = _normalize_numeric(temp_2d)
     sal_2d = _normalize_numeric(sal_2d)
+    doxy_2d = _normalize_numeric(doxy_2d)
+    chla_2d = _normalize_numeric(chla_2d)
+    nitrate_2d = _normalize_numeric(nitrate_2d)
 
     latitude = np.asarray(dataset["LATITUDE"].values).reshape(-1)
     longitude = np.asarray(dataset["LONGITUDE"].values).reshape(-1)
@@ -103,12 +153,20 @@ def parse_netcdf(filepath: str) -> tuple[pd.DataFrame, xr.Dataset]:
             "depth_m": pres_2d.reshape(-1),
             "temp_c": temp_2d.reshape(-1),
             "salinity": sal_2d.reshape(-1),
+            "oxygen": doxy_2d.reshape(-1),
+            "chlorophyll": chla_2d.reshape(-1),
+            "nitrate": nitrate_2d.reshape(-1),
+            "_temp_qc": temp_qc,
+            "_psal_qc": sal_qc,
+            "_doxy_qc": doxy_qc,
+            "_chla_qc": chla_qc,
+            "_nitrate_qc": nitrate_qc,
         }
     )
 
     # Always require temperature and depth; require salinity only if the source exists in file.
     drop_cols = ["temp_c", "depth_m", "date", "latitude", "longitude"]
-    if sal_source is not None:
+    if has_sal:
         drop_cols.append("salinity")
 
     cleaned_df = df.dropna(subset=drop_cols).reset_index(drop=True)

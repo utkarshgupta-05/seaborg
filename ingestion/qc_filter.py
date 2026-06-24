@@ -62,81 +62,25 @@ def apply_qc(df: pd.DataFrame, dataset: xr.Dataset) -> pd.DataFrame:
 
     Returns:
         Filtered DataFrame containing only scientifically valid rows.
-
-    Side effects:
-        None.
     """
     if df.empty:
         return df.copy()
 
-    if "PRES" in dataset.variables:
-        pres_2d = _normalize_numeric(_to_2d(np.asarray(dataset["PRES"].values)))
-    elif "PRES_ADJUSTED" in dataset.variables:
-        pres_2d = _normalize_numeric(_to_2d(np.asarray(dataset["PRES_ADJUSTED"].values)))
-    else:
-        # If depth source is missing in dataset, do a safe range-only fallback on provided df.
-        fallback_mask = (
-            (df["temp_c"] >= -3.0)
-            & (df["temp_c"] <= 40.0)
-            & (df["salinity"] >= 20.0)
-            & (df["salinity"] <= 42.0)
-            & (df["depth_m"] > 0.0)
-        )
-        return df.loc[fallback_mask].reset_index(drop=True)
-
-    n_prof, n_levels = pres_2d.shape
-    n_rows_raw = n_prof * n_levels
-
-    temp_2d = _extract_2d_numeric(dataset, ["TEMP", "TEMP_ADJUSTED"], (n_prof, n_levels))
-    sal_2d = _extract_2d_numeric(dataset, ["PSAL", "PSAL_ADJUSTED"], (n_prof, n_levels))
-    juld = pd.to_datetime(np.asarray(dataset["JULD"].values).reshape(-1), errors="coerce")
-    lat = np.asarray(dataset["LATITUDE"].values).reshape(-1)
-    lon = np.asarray(dataset["LONGITUDE"].values).reshape(-1)
-
-    temp_qc = _flatten_qc(dataset, "TEMP_QC", n_rows_raw)
-    psal_qc = _flatten_qc(dataset, "PSAL_QC", n_rows_raw)
-    temp_qc = np.array([str(x).strip().replace("b'", "").replace("'", "") for x in temp_qc], dtype=object)
-    psal_qc = np.array([str(x).strip().replace("b'", "").replace("'", "") for x in psal_qc], dtype=object)
     VALID_QC_FLAGS = {"1", "2"}
-    qc_good_mask_raw = (
-        np.isin(temp_qc, list(VALID_QC_FLAGS)) &
-        np.isin(psal_qc, list(VALID_QC_FLAGS))
-    )
 
-    # Mirror parser dropna logic so QC flags align with parser output rows.
-    temp_flat = temp_2d.reshape(-1)
-    sal_flat = sal_2d.reshape(-1)
-    depth_flat = pres_2d.reshape(-1)
-    date_flat = np.repeat(juld.values, n_levels) if len(juld) == n_prof else np.full(n_rows_raw, np.datetime64("NaT"))
-    lat_flat = np.repeat(lat, n_levels) if len(lat) == n_prof else np.full(n_rows_raw, np.nan)
-    lon_flat = np.repeat(lon, n_levels) if len(lon) == n_prof else np.full(n_rows_raw, np.nan)
+    # Base mask for temperature and salinity row-level rejection
+    temp_qc_good = df["_temp_qc"].isin(VALID_QC_FLAGS)
+    qc_good_mask_raw = temp_qc_good.copy()
+    
+    # Only reject by salinity QC if the file actually contained salinity source
+    has_salinity = ("PSAL" in dataset.variables) or ("PSAL_ADJUSTED" in dataset.variables)
+    if has_salinity:
+        psal_qc_good = df["_psal_qc"].isin(VALID_QC_FLAGS)
+        qc_good_mask_raw = qc_good_mask_raw & psal_qc_good
 
-    parser_keep_raw = (
-        ~pd.isna(temp_flat)
-        & ~pd.isna(depth_flat)
-        & ~pd.isna(date_flat)
-        & ~pd.isna(lat_flat)
-        & ~pd.isna(lon_flat)
-    )
-    if ("PSAL" in dataset.variables) or ("PSAL_ADJUSTED" in dataset.variables):
-        parser_keep_raw = parser_keep_raw & ~pd.isna(sal_flat)
+    qc_df = df.loc[qc_good_mask_raw].copy()
 
-    aligned_qc_mask = qc_good_mask_raw[parser_keep_raw]
-
-    # Safety alignment: never crash on shape drift; trim/pad to DataFrame length.
-    if len(aligned_qc_mask) > len(df):
-        aligned_qc_mask = aligned_qc_mask[: len(df)]
-    elif len(aligned_qc_mask) < len(df):
-        aligned_qc_mask = np.pad(
-            aligned_qc_mask,
-            (0, len(df) - len(aligned_qc_mask)),
-            mode="constant",
-            constant_values=True,
-        )
-
-    qc_df = df.loc[aligned_qc_mask].copy()
-
-    has_salinity = bool(("PSAL" in dataset.variables) or ("PSAL_ADJUSTED" in dataset.variables))
+    # Apply scientific range checks for row rejection
     in_range_mask = (
         (qc_df["temp_c"] >= -3.0)
         & (qc_df["temp_c"] <= 40.0)
@@ -145,4 +89,22 @@ def apply_qc(df: pd.DataFrame, dataset: xr.Dataset) -> pd.DataFrame:
     if has_salinity:
         in_range_mask = in_range_mask & (qc_df["salinity"] >= 20.0) & (qc_df["salinity"] <= 42.0)
 
-    return qc_df.loc[in_range_mask].reset_index(drop=True)
+    qc_df = qc_df.loc[in_range_mask].copy()
+
+    # BGC variables: null out the value if QC is bad, do NOT drop the row
+    BGC_QC_MAP = {
+        "oxygen": "_doxy_qc",
+        "chlorophyll": "_chla_qc",
+        "nitrate": "_nitrate_qc",
+    }
+    
+    for bgc_var, qc_col in BGC_QC_MAP.items():
+        if qc_col in qc_df.columns:
+            bad_bgc_mask = ~qc_df[qc_col].isin(VALID_QC_FLAGS)
+            qc_df.loc[bad_bgc_mask, bgc_var] = np.nan
+
+    # Drop temporary QC columns before returning
+    cols_to_drop = [c for c in qc_df.columns if c.endswith("_qc")]
+    qc_df = qc_df.drop(columns=cols_to_drop).reset_index(drop=True)
+
+    return qc_df

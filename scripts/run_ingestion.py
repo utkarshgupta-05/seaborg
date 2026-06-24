@@ -33,15 +33,28 @@ def main() -> None:
     total_rows = 0
 
     for filepath in nc_files:
-        df, dataset = parser.parse_netcdf(str(filepath))
-        clean_df = qc_filter.apply_qc(df, dataset)
-        dataset.close()
+        try:
+            df, dataset = parser.parse_netcdf(str(filepath))
+            try:
+                clean_df = qc_filter.apply_qc(df, dataset)
+                
+                if clean_df.empty:
+                    print(f"{filepath}: No valid rows after QC.")
+                    continue
 
-        db_loader.save_to_postgres(clean_df)
-        db_loader.save_to_parquet(clean_df)
+                db_loader.save_to_postgres(clean_df)
+                db_loader.save_to_parquet(clean_df)
 
-        print(f"{filepath}: {len(df)} raw -> {len(clean_df)} after QC")
-        total_rows += len(clean_df)
+                print(f"{filepath}: {len(df)} raw -> {len(clean_df)} after QC")
+                total_rows += len(clean_df)
+            finally:
+                dataset.close()
+        except ValueError as e:
+            print(f"Skipping {filepath}: {e}")
+            continue
+        except Exception as e:
+            print(f"Error processing {filepath}: {e}")
+            continue
 
     print(f"Total rows ingested: {total_rows}")
 
