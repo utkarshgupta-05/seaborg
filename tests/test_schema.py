@@ -19,5 +19,15 @@ def test_detect_variable_no_false_positives():
     assert detect_variable("depthwise") is None
     assert detect_variable("basalt") is None
     
+    # BGC substring false positives
+    assert detect_variable("chlorine") is None
+    assert detect_variable("machla") is None
+    assert detect_variable("dinitrate") is None
+    
     # Exact word "thermal" should match
     assert detect_variable("thermal") == "temp_c"
+
+def test_detect_variable_bgc():
+    assert detect_variable("chlorophyll levels") == "chlorophyll"
+    assert detect_variable("nitrate concentration") == "nitrate"
+    assert detect_variable("chl at 50m") == "chlorophyll"

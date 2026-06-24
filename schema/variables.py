@@ -24,6 +24,16 @@ VARIABLE_REGISTRY = {
         "title": "Oxygen",
         "aliases": ["oxygen", "o2", "dissolved oxygen", "oxygen level", "oxygen content"],
     },
+    "chlorophyll": {
+        "label": "Chlorophyll",
+        "title": "Chlorophyll",
+        "aliases": ["chlorophyll", "chl", "chla"],
+    },
+    "nitrate": {
+        "label": "Nitrate",
+        "title": "Nitrate",
+        "aliases": ["nitrate", "no3"],
+    },
 }
 
 VARIABLE_LABELS = {k: v["label"] for k, v in VARIABLE_REGISTRY.items()}
