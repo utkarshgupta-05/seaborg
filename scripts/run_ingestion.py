@@ -31,6 +31,7 @@ def main() -> None:
         return
 
     total_rows = 0
+    has_errors = False
 
     for filepath in nc_files:
         try:
@@ -43,7 +44,6 @@ def main() -> None:
                     continue
 
                 db_loader.save_to_postgres(clean_df)
-                db_loader.save_to_parquet(clean_df)
 
                 print(f"{filepath}: {len(df)} raw -> {len(clean_df)} after QC")
                 total_rows += len(clean_df)
@@ -54,9 +54,16 @@ def main() -> None:
             continue
         except Exception as e:
             print(f"Error processing {filepath}: {e}")
+            has_errors = True
             continue
 
     print(f"Total rows ingested: {total_rows}")
+    
+    if not has_errors:
+        print("Exporting Parquet snapshot...")
+        db_loader.export_parquet_snapshot()
+    else:
+        print("Skipping Parquet export due to processing errors.")
 
 
 if __name__ == "__main__":

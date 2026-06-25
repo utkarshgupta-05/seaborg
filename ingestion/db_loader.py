@@ -52,46 +52,40 @@ def save_to_postgres(df: pd.DataFrame) -> None:
     logger.info(f"Loaded {len(df)} rows into PostgreSQL.")
 
 
-def save_to_parquet(df: pd.DataFrame) -> None:
+def export_parquet_snapshot() -> None:
     """
-    Saves cleaned rows into a deduplicated Parquet dataset.
-
-    Args:
-        df: Cleaned DataFrame with SeaBorg ingestion schema columns.
-
+    Exports a complete, deduplicated Parquet snapshot directly from PostgreSQL.
+    
     Returns:
         None.
-
+        
     Side effects:
-        Creates/updates Parquet file at PARQUET_PATH and prints row count written.
+        Overwrites Parquet file at PARQUET_PATH and prints row count written.
     """
+    engine = _get_engine()
+    
+    # Select exactly the columns needed for Parquet schema
+    sql = "SELECT float_id, date, latitude, longitude, depth_m, temp_c, salinity, oxygen, chlorophyll, nitrate FROM argo_profiles"
+    
+    df = pd.read_sql(sql, engine)
+    
+    if df.empty:
+        logger.info("PostgreSQL is empty. Exported 0 rows to Parquet.")
+        
+    # Ensure correct dtypes
+    df["date"] = pd.to_datetime(df["date"], errors="coerce")
+    float_cols = ["latitude", "longitude", "depth_m", "temp_c", "salinity", "oxygen", "chlorophyll", "nitrate"]
+    for col in float_cols:
+        df[col] = df[col].astype(float)
+        
+    # Verify exported column list exactly matches expected Parquet schema
+    expected_cols = ["float_id", "date", "latitude", "longitude", "depth_m", "temp_c", "salinity", "oxygen", "chlorophyll", "nitrate"]
+    if list(df.columns) != expected_cols:
+        logger.warning(f"Export column mismatch! Expected {expected_cols}, got {list(df.columns)}")
+        
     parquet_path = os.getenv("PARQUET_PATH", "data/processed/argo.parquet")
     target = Path(parquet_path)
     target.parent.mkdir(parents=True, exist_ok=True)
-
-    if df.empty:
-        if not target.exists():
-            # Preserve pipeline contract: create an empty parquet only when none exists yet.
-            empty_df = pd.DataFrame(columns=[
-                "float_id", "date", "latitude", "longitude", "depth_m", 
-                "temp_c", "salinity", "oxygen", "chlorophyll", "nitrate"
-            ])
-            empty_df.to_parquet(target, index=False)
-            logger.info(f"Wrote 0 rows to Parquet: {target}")
-        else:
-            logger.info(f"Parquet unchanged (empty batch): {target}")
-        return
-
-    working_df = df.copy()
-    working_df["date"] = pd.to_datetime(working_df["date"], errors="coerce")
-
-    if target.exists():
-        existing_df = pd.read_parquet(target)
-        existing_df["date"] = pd.to_datetime(existing_df["date"], errors="coerce")
-        combined = pd.concat([existing_df, working_df], ignore_index=True)
-    else:
-        combined = working_df
-
-    deduped = combined.drop_duplicates(subset=["float_id", "date", "depth_m"]).reset_index(drop=True)
-    deduped.to_parquet(target, index=False)
-    logger.info(f"Wrote {len(deduped)} rows to Parquet: {target}")
+    
+    df.to_parquet(target, index=False)
+    logger.info(f"Exported {len(df)} rows to Parquet snapshot: {target}")
