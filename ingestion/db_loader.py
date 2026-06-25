@@ -20,6 +20,8 @@ def _get_engine():
     return create_engine(database_url, future=True)
 
 
+from sqlalchemy.dialects.postgresql import insert
+
 def save_to_postgres(df: pd.DataFrame) -> None:
     """
     Appends cleaned rows to PostgreSQL table `argo_profiles`.
@@ -38,7 +40,15 @@ def save_to_postgres(df: pd.DataFrame) -> None:
         return
 
     engine = _get_engine()
-    df.to_sql("argo_profiles", engine, if_exists="append", index=False)
+    
+    def insert_on_conflict_nothing(table, conn, keys, data_iter):
+        data = [dict(zip(keys, row)) for row in data_iter]
+        stmt = insert(table.table).values(data).on_conflict_do_nothing(
+            index_elements=["float_id", "date", "depth_m"]
+        )
+        conn.execute(stmt)
+
+    df.to_sql("argo_profiles", engine, if_exists="append", index=False, method=insert_on_conflict_nothing)
     logger.info(f"Loaded {len(df)} rows into PostgreSQL.")
 
 
