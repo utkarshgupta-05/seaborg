@@ -12,6 +12,8 @@ data/exports/
 *.log
 visualiser.html
 pytest_output.txt
+z_markdown_files
+
 
 # Frontend
 frontend/node_modules/
