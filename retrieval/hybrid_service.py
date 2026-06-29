@@ -47,7 +47,8 @@ def hybrid_answer(question: str) -> dict:
     # threshold 1.5 is typically safe for MiniLM normalized embeddings
     threshold = float(os.getenv("FAISS_DISTANCE_THRESHOLD", "1.5"))
     parsed = parse_query(question)
-    semantic_rows = retrieve(question, top_k=5, distance_threshold=threshold, parsed_query=parsed)
+    variable = parsed.variable if parsed.variable else "temp_c"
+    semantic_rows = retrieve(question, top_k=5, distance_threshold=threshold, parsed_query=parsed, variable=variable)
 
     # 3. Deduplicate and merge rows
     # Prefer structured rows (authoritative) by placing them first and keeping 'first' duplicate
@@ -58,7 +59,7 @@ def hybrid_answer(question: str) -> dict:
         if subset_cols:
             combined_df = combined_df.drop_duplicates(subset=subset_cols, keep="first")
 
-    variable = parsed.variable if parsed.variable else "temp_c"
+
 
     from schema.variables import has_variable_data, VARIABLE_LABELS, DEFAULT_VARIABLE
     if variable != DEFAULT_VARIABLE and not has_variable_data(combined_df, variable):

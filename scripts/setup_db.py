@@ -38,6 +38,8 @@ def main() -> None:
         temp_c FLOAT,
         salinity FLOAT,
         oxygen FLOAT NULL,
+        chlorophyll FLOAT NULL,
+        nitrate FLOAT NULL,
         created_at TIMESTAMP DEFAULT NOW(),
         UNIQUE (float_id, date, depth_m)
     );
@@ -58,6 +60,8 @@ def main() -> None:
     try:
         with engine.begin() as conn:
             conn.execute(text(create_table_sql))
+            conn.execute(text("ALTER TABLE argo_profiles ADD COLUMN IF NOT EXISTS chlorophyll FLOAT;"))
+            conn.execute(text("ALTER TABLE argo_profiles ADD COLUMN IF NOT EXISTS nitrate FLOAT;"))
             conn.execute(text(create_idx_float_id_sql))
             conn.execute(text(create_idx_date_sql))
             conn.execute(text(create_idx_lat_lon_sql))

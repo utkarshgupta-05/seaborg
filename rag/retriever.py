@@ -21,6 +21,8 @@ _ARGO_SCHEMA_COLUMNS = [
     "temp_c",
     "salinity",
     "oxygen",
+    "chlorophyll",
+    "nitrate",
     "created_at",
     "faiss_distance",
 ]
@@ -65,7 +67,7 @@ def load_index() -> None:
     _df = pd.read_parquet(parquet_path).reset_index(drop=True)
 
 
-def retrieve(user_query: str, top_k: int = 5, distance_threshold: float = None, parsed_query: ParsedQuery = None) -> pd.DataFrame:
+def retrieve(user_query: str, top_k: int = 5, distance_threshold: float = None, parsed_query: ParsedQuery = None, variable: str = "temp_c") -> pd.DataFrame:
     """
     Retrieves top-k nearest rows from parquet using FAISS similarity search.
 
@@ -89,7 +91,8 @@ def retrieve(user_query: str, top_k: int = 5, distance_threshold: float = None, 
     # Pre-filtering tradeoff: Rebuilding FAISS indices per query or using IDMaps adds significant
     # complexity and latency. Instead, we use an efficient post-retrieval filter by fetching a
     # larger initial set (top 2000) and applying strict Pandas filtering before truncating to top_k.
-    search_k = 2000 if parsed_query and parsed_query.has_filters else top_k
+    _SPARSE_VARIABLES = {"oxygen", "chlorophyll", "nitrate"}
+    search_k = len(_df) if variable in _SPARSE_VARIABLES else (2000 if parsed_query and parsed_query.has_filters else top_k)
     search_k = min(search_k, len(_df))
     distances, indices = _index.search(query_vec, search_k)
     
@@ -113,6 +116,11 @@ def retrieve(user_query: str, top_k: int = 5, distance_threshold: float = None, 
             rows = rows[pd.to_datetime(rows["date"]) >= pd.to_datetime(parsed_query.date_min)]
         if parsed_query.date_max is not None:
             rows = rows[pd.to_datetime(rows["date"]) <= pd.to_datetime(parsed_query.date_max)]
+
+    _SPARSE_VARIABLES = {"oxygen", "chlorophyll", "nitrate"}
+    if variable in _SPARSE_VARIABLES:
+        rows["_is_null"] = rows[variable].isna().astype(int)
+        rows = rows.sort_values(["_is_null", "faiss_distance"]).drop(columns=["_is_null"])
 
     rows = rows.head(top_k).reset_index(drop=True)
     return _ensure_schema(rows)

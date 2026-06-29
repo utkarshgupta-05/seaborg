@@ -43,8 +43,15 @@ def save_to_postgres(df: pd.DataFrame) -> None:
     
     def insert_on_conflict_nothing(table, conn, keys, data_iter):
         data = [dict(zip(keys, row)) for row in data_iter]
-        stmt = insert(table.table).values(data).on_conflict_do_nothing(
-            index_elements=["float_id", "date", "depth_m"]
+        from sqlalchemy import text
+        stmt = insert(table.table).values(data)
+        stmt = stmt.on_conflict_do_update(
+            index_elements=["float_id", "date", "depth_m"],
+            set_={
+                "oxygen":      text("COALESCE(EXCLUDED.oxygen, argo_profiles.oxygen)"),
+                "chlorophyll":  text("COALESCE(EXCLUDED.chlorophyll, argo_profiles.chlorophyll)"),
+                "nitrate":     text("COALESCE(EXCLUDED.nitrate, argo_profiles.nitrate)"),
+            }
         )
         conn.execute(stmt)
 

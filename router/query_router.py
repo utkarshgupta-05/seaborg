@@ -86,22 +86,9 @@ _RANGE_KEYWORDS = [
 # "between X and Y" — only fires when flanked by numbers (avoids "relationship between")
 _BETWEEN_PATTERN = re.compile(r"between\s+\d", re.IGNORECASE)
 
-_GEO_REGIONS = [
-    "atlantic ocean", "atlantic",
-    "indian ocean",   "indian",
-    "pacific ocean",  "pacific",
-    "arabian sea",
-    "bay of bengal",
-    "south china sea",
-    "mediterranean sea", "mediterranean",
-    "southern ocean",
-    "arctic ocean",
-    "gulf of mexico",
-    "north sea",
-    "red sea",
-    "caribbean sea",
-    "coral sea",
-]
+from llm.geo_mapping import REGION_BOUNDS
+
+_GEO_REGIONS = list(REGION_BOUNDS.keys()) + ["atlantic", "indian", "pacific", "mediterranean"]
 
 _VIZ_KEYWORDS = [
     # Require explicit intent to visualize — drop generic words like "show"/"profile"

@@ -28,7 +28,7 @@ Answer:"""
 
 SQL_PROMPT = """Convert the following question into a valid PostgreSQL SELECT query for the
 table `argo_profiles` with columns:
-id, float_id, date, latitude, longitude, depth_m, temp_c, salinity, oxygen, created_at.
+id, float_id, date, latitude, longitude, depth_m, temp_c, salinity, oxygen, chlorophyll, nitrate, created_at.
 
 IMPORTANT: The table does NOT have a region or ocean column. When a question
 references a named ocean or sea, you MUST filter by latitude and longitude

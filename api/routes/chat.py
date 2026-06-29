@@ -264,7 +264,7 @@ def chat(req: ChatRequest) -> ChatResponse:
     # ── SEMANTIC PATH (default) ──────────────────────────────────────────────
     # Filter weak matches using threshold to prevent hallucinations on irrelevant queries
     threshold = float(os.getenv("FAISS_DISTANCE_THRESHOLD", "1.5"))
-    rows = retrieve(req.message, top_k=5, distance_threshold=threshold, parsed_query=parsed)
+    rows = retrieve(req.message, top_k=5, distance_threshold=threshold, parsed_query=parsed, variable=requested_variable)
     
     # Calculate confidence based on whether we found relevant rows
     confidence = 0.85

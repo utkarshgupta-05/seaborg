@@ -27,6 +27,7 @@ REGION_BOUNDS: dict[str, dict[str, float]] = {
     "black sea":         {"lat_min":  40, "lat_max":  47, "lon_min":   27, "lon_max":  42},
     "baltic sea":        {"lat_min":  53, "lat_max":  66, "lon_min":   10, "lon_max":  30},
     "north sea":         {"lat_min":  51, "lat_max":  61, "lon_min":   -4, "lon_max":  10},
+    "coral sea":         {"lat_min": -25, "lat_max": -10, "lon_min":  142, "lon_max": 170},
 }
 
 
