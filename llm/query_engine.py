@@ -5,12 +5,11 @@ from dotenv import load_dotenv
 from groq import Groq
 
 from .prompts import build_prompt
-from .nl_to_sql import generate_sql
 
 load_dotenv()
 
 
-import concurrent.futures
+from structured_query.parser import parse_query, to_display_sql
 
 def answer_query(question: str, context_rows: pd.DataFrame, variable: str = "temp_c") -> tuple[str, str]:
     """
@@ -27,36 +26,22 @@ def answer_query(question: str, context_rows: pd.DataFrame, variable: str = "tem
 
     Returns:
         A tuple (answer_text, sql_string).
-
-    Side effects:
-        Makes up to two Groq API calls (answer + SQL generation) concurrently.
     """
+    parsed = parse_query(question)
+    
     # Early exit: no data → deterministic answer, no LLM call
     if context_rows is None or context_rows.empty:
-        return "No data found for the requested region.", "-- No data found"
+        return "No data found for the requested region.", to_display_sql(parsed)
 
-    def get_sql():
-        try:
-            return generate_sql(question)
-        except Exception:
-            return "-- SQL generation failed"
+    client = Groq(api_key=os.getenv("GROQ_API_KEY"))
+    model = os.getenv("LLM_MODEL", "llama-3.1-8b-instant")
+    prompt = build_prompt(question, context_rows, variable)
+    response = client.chat.completions.create(
+        model=model,
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.1,
+    )
+    answer = response.choices[0].message.content.strip()
 
-    def get_answer():
-        client = Groq(api_key=os.getenv("GROQ_API_KEY"))
-        model = os.getenv("LLM_MODEL", "llama-3.1-8b-instant")
-        prompt = build_prompt(question, context_rows, variable)
-        response = client.chat.completions.create(
-            model=model,
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.1,
-        )
-        return response.choices[0].message.content.strip()
-
-    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
-        future_sql = executor.submit(get_sql)
-        future_answer = executor.submit(get_answer)
-
-        sql = future_sql.result()
-        answer = future_answer.result()
-
+    sql = to_display_sql(parsed)
     return answer, sql

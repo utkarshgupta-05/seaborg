@@ -15,7 +15,6 @@ from dotenv import load_dotenv
 from groq import Groq
 
 from llm.context_builder import build_hybrid_prompt
-from llm.nl_to_sql import generate_sql
 from rag.retriever import retrieve
 from structured_query.engine import answer_structured_query
 from structured_query.parser import parse_query
@@ -51,16 +50,8 @@ def hybrid_answer(question: str) -> dict:
     semantic_rows = retrieve(question, top_k=5, distance_threshold=threshold, parsed_query=parsed, variable=variable)
 
     # 3. Deduplicate and merge rows
-    # Prefer structured rows (authoritative) by placing them first and keeping 'first' duplicate
-    combined_df = pd.concat([struct_rows, semantic_rows], ignore_index=True)
-    if not combined_df.empty:
-        # Ensure we have the subset columns before deduplicating
-        subset_cols = [c for c in ["float_id", "date", "depth_m"] if c in combined_df.columns]
-        if subset_cols:
-            combined_df = combined_df.drop_duplicates(subset=subset_cols, keep="first")
-
-
-
+    from retrieval.merger import merge_results
+    combined_df = merge_results(struct_rows, semantic_rows)
     from schema.variables import has_variable_data, VARIABLE_LABELS, DEFAULT_VARIABLE
     if variable != DEFAULT_VARIABLE and not has_variable_data(combined_df, variable):
         var_label = VARIABLE_LABELS.get(variable, variable)
@@ -84,39 +75,28 @@ def hybrid_answer(question: str) -> dict:
     if semantic_rows.empty:
         confidence = 0.70  # Lower confidence since we couldn't find a semantic explanation
 
-    import concurrent.futures
+    from structured_query.parser import to_display_sql
 
-    # 5. Invoke LLM and generate SQL concurrently
-    def get_answer():
-        try:
-            client = Groq(api_key=os.getenv("GROQ_API_KEY"))
-            model = os.getenv("LLM_MODEL", "llama-3.1-8b-instant")
-            
-            response = client.chat.completions.create(
-                model=model,
-                messages=[{"role": "user", "content": prompt}],
-                temperature=0.1,
-            )
-            return response.choices[0].message.content.strip()
-        except Exception as e:
-            import logging
-            logging.getLogger(__name__).error(f"LLM call failed: {e}")
-            return f"{struct_summary}\n\n(LLM narrative unavailable)"
-
-    def get_sql():
-        if combined_df.empty:
-            return "-- No data found"
-        try:
-            return generate_sql(question)
-        except Exception:
-            return "-- SQL generation failed"
-
-    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
-        future_answer = executor.submit(get_answer)
-        future_sql = executor.submit(get_sql)
+    # 5. Invoke LLM and generate SQL
+    try:
+        client = Groq(api_key=os.getenv("GROQ_API_KEY"))
+        model = os.getenv("LLM_MODEL", "llama-3.1-8b-instant")
         
-        final_answer = future_answer.result()
-        sql = future_sql.result()
+        response = client.chat.completions.create(
+            model=model,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.1,
+        )
+        final_answer = response.choices[0].message.content.strip()
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).error(f"LLM call failed: {e}")
+        final_answer = f"{struct_summary}\n\n(LLM narrative unavailable)"
+
+    if combined_df.empty:
+        sql = "-- No data found"
+    else:
+        sql = to_display_sql(parsed)
 
     return {
         "summary": final_answer,

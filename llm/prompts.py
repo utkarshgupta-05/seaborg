@@ -26,20 +26,6 @@ Question: {question}
 
 Answer:"""
 
-SQL_PROMPT = """Convert the following question into a valid PostgreSQL SELECT query for the
-table `argo_profiles` with columns:
-id, float_id, date, latitude, longitude, depth_m, temp_c, salinity, oxygen, chlorophyll, nitrate, created_at.
-
-IMPORTANT: The table does NOT have a region or ocean column. When a question
-references a named ocean or sea, you MUST filter by latitude and longitude
-ranges. If coordinate hints are provided in parentheses at the end of the
-question, use those exact BETWEEN values.
-
-Return ONLY the SQL query. No explanation. No markdown. No semicolon at the end.
-
-Question: {question}"""
-
-
 from schema.variables import DEFAULT_VARIABLE
 from .formatters import format_row
 

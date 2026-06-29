@@ -93,8 +93,8 @@ def _extract_date(question: str) -> tuple[Optional[date], Optional[date]]:
     """
     q = question.lower()
     
-    # "in {year}"
-    m = re.search(r"\bin\s+(19\d{2}|20\d{2})\b", q)
+    # "in {year}" or "during {year}"
+    m = re.search(r"\b(?:in|during)\s+(19\d{2}|20\d{2})\b", q)
     if m:
         year = int(m.group(1))
         return date(year, 1, 1), date(year, 12, 31)
@@ -169,3 +169,30 @@ def parse_query(question: str) -> ParsedQuery:
             parsed.metadata_filters["unmatched_region"] = True
 
     return parsed
+
+
+def to_display_sql(parsed: ParsedQuery) -> str:
+    """
+    Generates a deterministic, display-only SQL string representing
+    the parsed constraints. This replaces the slow/unreliable LLM SQL generation.
+    """
+    conditions = []
+    
+    if parsed.lat_min is not None and parsed.lat_max is not None:
+        conditions.append(f"latitude BETWEEN {parsed.lat_min} AND {parsed.lat_max}")
+    if parsed.lon_min is not None and parsed.lon_max is not None:
+        conditions.append(f"longitude BETWEEN {parsed.lon_min} AND {parsed.lon_max}")
+    if parsed.depth_min is not None:
+        conditions.append(f"depth_m >= {parsed.depth_min}")
+    if parsed.depth_max is not None:
+        conditions.append(f"depth_m <= {parsed.depth_max}")
+    if parsed.date_min is not None:
+        conditions.append(f"date >= '{parsed.date_min.isoformat()}'")
+    if parsed.date_max is not None:
+        conditions.append(f"date <= '{parsed.date_max.isoformat()}'")
+    
+    where_clause = f"WHERE {' AND '.join(conditions)}" if conditions else "WHERE 1=1"
+    
+    variable = parsed.variable if parsed.variable else "temp_c"
+    
+    return f"SELECT float_id, date, latitude, longitude, depth_m, {variable}\nFROM argo_profiles\n{where_clause}"
