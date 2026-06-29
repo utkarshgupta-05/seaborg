@@ -142,6 +142,19 @@ def generate_visualization_payload(message: str, df: pd.DataFrame, float_ids: li
         
     return None, None, None, None
 
+def _extract_float_ids(df: pd.DataFrame) -> list[str]:
+    if not df.empty and "float_id" in df.columns:
+        return df["float_id"].unique().tolist()
+    return []
+
+def _attach_routing_signals(metadata: dict, routing) -> dict:
+    metadata = metadata.copy() if metadata else {}
+    metadata["routing_signals"] = {
+        "structured": routing.structured_signals,
+        "semantic": routing.semantic_signals,
+    }
+    return metadata
+
 
 @router.post("/chat", response_model=ChatResponse)
 def chat(req: ChatRequest) -> ChatResponse:
@@ -193,18 +206,11 @@ def chat(req: ChatRequest) -> ChatResponse:
         chart_type = detect_chart_type(req.message)
         
         rows_df = result["rows"]
-        if not rows_df.empty and "float_id" in rows_df.columns:
-            float_ids = rows_df["float_id"].unique().tolist()
-        else:
-            float_ids = []
+        float_ids = _extract_float_ids(rows_df)
             
         sql_used = "N/A (Structured Engine)"
         confidence = 1.0
-        metadata = result.get("metadata", {})
-        metadata["routing_signals"] = {
-            "structured": routing.structured_signals,
-            "semantic": routing.semantic_signals,
-        }
+        metadata = _attach_routing_signals(result.get("metadata", {}), routing)
         
         viz_type, viz_data, chart_title, chart_description = generate_visualization_payload(
             req.message, rows_df, float_ids, requested_variable
@@ -236,13 +242,10 @@ def chat(req: ChatRequest) -> ChatResponse:
         
         metadata = result.get("metadata", {})
         metadata["query_type"] = "hybrid"
-        metadata["routing_signals"] = {
-            "structured": routing.structured_signals,
-            "semantic": routing.semantic_signals,
-        }
+        metadata = _attach_routing_signals(metadata, routing)
 
         chart_type = detect_chart_type(req.message)
-        float_ids = rows_df["float_id"].unique().tolist() if not rows_df.empty and "float_id" in rows_df.columns else []
+        float_ids = _extract_float_ids(rows_df)
 
         viz_type, viz_data, chart_title, chart_description = generate_visualization_payload(
             req.message, rows_df, float_ids, requested_variable
@@ -293,10 +296,12 @@ def chat(req: ChatRequest) -> ChatResponse:
             
         answer, sql = answer_query(req.message, rows, requested_variable)
         chart_type = detect_chart_type(req.message)
-        float_ids = rows["float_id"].unique().tolist()
+        float_ids = _extract_float_ids(rows)
         viz_type, viz_data, chart_title, chart_description = generate_visualization_payload(
             req.message, rows, float_ids, requested_variable
         )
+
+    metadata = _attach_routing_signals({"query_type": "semantic"}, routing)
 
     return ChatResponse(
         answer=answer,
@@ -304,13 +309,7 @@ def chat(req: ChatRequest) -> ChatResponse:
         float_ids=float_ids,
         sql_used=sql,
         confidence=confidence,
-        metadata={
-            "query_type": "semantic",
-            "routing_signals": {
-                "structured": routing.structured_signals,
-                "semantic": routing.semantic_signals,
-            },
-        },
+        metadata=metadata,
         visualization_type=viz_type,
         visualization_data=viz_data,
         chart_title=chart_title,
