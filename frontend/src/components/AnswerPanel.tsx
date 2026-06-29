@@ -40,15 +40,8 @@ export const AnswerPanel: React.FC<AnswerPanelProps> = ({ response, isLoading })
 
   const renderMetadata = () => {
     // Collect metadata items to render dynamically
-    const items: { label: string; value: string }[] = [];
+    const items: { label: string; value: React.ReactNode }[] = [];
     
-    // Core properties
-    if (response.sql_used && response.sql_used !== "none" && response.sql_used !== "N/A (Structured Engine)") {
-      items.push({ label: 'Query Type', value: 'Semantic Retrieval' });
-    } else if (response.sql_used === "N/A (Structured Engine)") {
-      items.push({ label: 'Query Type', value: 'Structured Query' });
-    }
-
     if (response.float_ids && response.float_ids.length > 0) {
       items.push({ label: 'Floats Analyzed', value: String(response.float_ids.length) });
     }
@@ -66,14 +59,32 @@ export const AnswerPanel: React.FC<AnswerPanelProps> = ({ response, isLoading })
           .map(w => w.charAt(0).toUpperCase() + w.slice(1))
           .join(' ');
         
-        // Skip duplicate or hidden keys if necessary, or just render them all cleanly
-        if (key !== 'query_type') { // We already handled general query type above
-          let displayVal = String(val);
-          if (typeof val === 'object' && val !== null) {
-            displayVal = Object.entries(val).map(([k, v]) => `${k}: ${v}`).join(', ');
-          }
-          items.push({ label: formattedKey, value: displayVal });
+        let displayVal: React.ReactNode = String(val);
+        if (key === 'query_type') {
+          const qt = String(val).toLowerCase();
+          let bgColor = '#cbd5e1';
+          let textColor = '#334155';
+          let label = qt;
+          if (qt === 'structured') { bgColor = '#bfdbfe'; textColor = '#1e3a8a'; label = 'Structured Query'; }
+          else if (qt === 'semantic') { bgColor = '#e9d5ff'; textColor = '#581c87'; label = 'Semantic Retrieval'; }
+          else if (qt === 'hybrid') { bgColor = '#bbf7d0'; textColor = '#14532d'; label = 'Hybrid'; }
+          
+          displayVal = (
+            <span style={{
+              backgroundColor: bgColor,
+              color: textColor,
+              padding: '2px 8px',
+              borderRadius: '12px',
+              fontSize: '0.8rem',
+              fontWeight: 600
+            }}>
+              {label}
+            </span>
+          );
+        } else if (typeof val === 'object' && val !== null) {
+          displayVal = Object.entries(val).map(([k, v]) => `${k}: ${v}`).join(', ');
         }
+        items.push({ label: formattedKey, value: displayVal });
       });
     }
 
