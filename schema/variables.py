@@ -39,6 +39,19 @@ VARIABLE_REGISTRY = {
 VARIABLE_LABELS = {k: v["label"] for k, v in VARIABLE_REGISTRY.items()}
 VARIABLE_TITLES = {k: v["title"] for k, v in VARIABLE_REGISTRY.items()}
 
+# Pre-compute alias mappings and sort by length descending to match longest first
+_ALIASES_TO_VARS = []
+for var_key, metadata in VARIABLE_REGISTRY.items():
+    for alias in metadata["aliases"]:
+        _ALIASES_TO_VARS.append((alias, var_key))
+        
+# Sort by length of alias (longest first)
+_ALIASES_TO_VARS.sort(key=lambda x: len(x[0]), reverse=True)
+
+# Pre-compile regex patterns for efficiency
+_ALIAS_PATTERNS = [(re.compile(r'\b' + re.escape(alias) + r'\b'), var_key) for alias, var_key in _ALIASES_TO_VARS]
+
+
 def detect_variable(question: str) -> Optional[str]:
     """
     Detects the requested variable in the question.
@@ -47,20 +60,9 @@ def detect_variable(question: str) -> Optional[str]:
     """
     q_lower = question.lower()
     
-    # Pre-compute alias mappings and sort by length descending to match longest first
-    aliases_to_vars = []
-    for var_key, metadata in VARIABLE_REGISTRY.items():
-        for alias in metadata["aliases"]:
-            aliases_to_vars.append((alias, var_key))
-            
-    # Sort by length of alias (longest first)
-    aliases_to_vars.sort(key=lambda x: len(x[0]), reverse=True)
-    
     # 1. Exact whole-word match (confidence-based precedence)
-    for alias, var_key in aliases_to_vars:
-        # \b ensures word boundary
-        pattern = r'\b' + re.escape(alias) + r'\b'
-        if re.search(pattern, q_lower):
+    for pattern, var_key in _ALIAS_PATTERNS:
+        if pattern.search(q_lower):
             return var_key
             
 
