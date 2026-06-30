@@ -2,7 +2,7 @@
 
 SeaBorg is a hybrid ocean-data assistant for querying ARGO float observations through a combination of **structured database queries**, **semantic retrieval**, and **LLM-assisted summarization**.
 
-It is built to answer questions about ocean profiles, depth ranges, temperature, salinity, oxygen, dates, and geographic regions with a code-first architecture that keeps exact numerical answers grounded in the data.
+It is built to answer questions about ocean profiles, depth ranges, dates, geographic regions, and core variables (temperature, salinity) as well as biogeochemical (BGC) variables (oxygen, chlorophyll, nitrate) with a code-first architecture that keeps exact numerical answers grounded in the data.
 
 ---
 
@@ -16,12 +16,18 @@ It is built to answer questions about ocean profiles, depth ranges, temperature,
 
 ### 📊 Structured Ocean Analytics
 - Parses natural-language filters such as:
-  - depth ranges
-  - named ocean/sea regions
-  - year-based date constraints
-  - requested variables like temperature, salinity, and oxygen
-- Queries the `argo_profiles` table through SQLAlchemy
+  - depth ranges (e.g., "below 100m")
+  - named ocean/sea regions (e.g., "Atlantic Ocean")
+  - year-based date constraints (e.g., "in 2023")
+  - requested variables (temperature, salinity, oxygen, chlorophyll, nitrate)
+  - variable range limits (e.g., "salinity between 34 and 35", "chlorophyll above 0.5")
+- Queries the `argo_profiles` table through SQLAlchemy with robust UPSERT strategies for sparse BGC data
 - Returns deterministic summaries and matching rows
+
+### 💬 Multi-turn Contextual Chat
+- Maintains conversation history across requests with session isolation
+- Follow-up questions seamlessly inherit previously established geographic and depth constraints
+- Renders full chat transcripts with interactive Plotly visualizations
 
 ### 🧠 Semantic Retrieval
 - Uses a local `sentence-transformers` embedding model
@@ -76,9 +82,8 @@ seaborg-main/
 ├── llm/
 │   ├── prompts.py           # Prompt templates
 │   ├── query_engine.py      # RAG + LLM answer generation
-│   ├── nl_to_sql.py         # SQL generation from questions
 │   ├── context_builder.py   # Hybrid prompt construction
-│   ├── geo_mapping.py       # Region → coordinate mapping
+│   ├── geo_mapping.py       # Region → coordinate mapping (unified aliases)
 │   └── formatters.py        # Row formatting helpers
 │
 ├── ingestion/
@@ -116,14 +121,14 @@ seaborg-main/
    - **structured**
    - **semantic**
    - **hybrid**
-4. Structured queries are parsed for filters and answered from PostgreSQL.
-5. Semantic queries are embedded and matched against the FAISS index.
-6. Hybrid queries combine structured statistics with semantic context.
+4. Structured queries are parsed for filters and answered from PostgreSQL. Display SQL is deterministically built from the parsed AST.
+5. Semantic queries are embedded and matched against the FAISS index (with preference reranking for sparse BGC variables).
+6. Hybrid queries combine structured statistics with semantic context and conversation history.
 7. The backend returns:
    - a natural-language answer
-   - optional chart metadata
+   - optional chart metadata and float IDs
    - SQL used for display
-   - confidence and diagnostic metadata
+   - confidence and diagnostic metadata (including routing signals)
 
 ---
 
