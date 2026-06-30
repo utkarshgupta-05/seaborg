@@ -17,7 +17,10 @@ from groq import Groq
 from llm.context_builder import build_hybrid_prompt
 from rag.retriever import retrieve
 from structured_query.engine import answer_structured_query
-from structured_query.parser import parse_query
+from structured_query.parser import parse_query, to_display_sql
+from retrieval.merger import merge_results
+from schema.variables import has_variable_data, VARIABLE_LABELS, DEFAULT_VARIABLE
+import logging
 
 load_dotenv()
 
@@ -50,9 +53,7 @@ def hybrid_answer(question: str) -> dict:
     semantic_rows = retrieve(question, top_k=5, distance_threshold=threshold, parsed_query=parsed, variable=variable)
 
     # 3. Deduplicate and merge rows
-    from retrieval.merger import merge_results
     combined_df = merge_results(struct_rows, semantic_rows)
-    from schema.variables import has_variable_data, VARIABLE_LABELS, DEFAULT_VARIABLE
     if variable != DEFAULT_VARIABLE and not has_variable_data(combined_df, variable):
         var_label = VARIABLE_LABELS.get(variable, variable)
         metadata["error"] = "variable_unavailable"
@@ -75,8 +76,6 @@ def hybrid_answer(question: str) -> dict:
     if semantic_rows.empty:
         confidence = 0.70  # Lower confidence since we couldn't find a semantic explanation
 
-    from structured_query.parser import to_display_sql
-
     # 5. Invoke LLM and generate SQL
     try:
         client = Groq(api_key=os.getenv("GROQ_API_KEY"))
@@ -89,7 +88,6 @@ def hybrid_answer(question: str) -> dict:
         )
         final_answer = response.choices[0].message.content.strip()
     except Exception as e:
-        import logging
         logging.getLogger(__name__).error(f"LLM call failed: {e}")
         final_answer = f"{struct_summary}\n\n(LLM narrative unavailable)"
 

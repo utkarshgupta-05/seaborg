@@ -23,6 +23,13 @@ from visualisation.common import VARIABLE_TITLES
 
 load_dotenv()
 
+from schema.variables import VARIABLE_LABELS, DEFAULT_VARIABLE, has_variable_data
+from structured_query.repository import is_variable_available
+from retrieval.merger import merge_results
+import logging
+
+logger = logging.getLogger(__name__)
+
 router = APIRouter()
 
 
@@ -173,17 +180,12 @@ def chat(req: ChatRequest) -> ChatResponse:
     routing = route_query(req.message)
     query_type = routing.intent
 
-    import logging
-    logger = logging.getLogger(__name__)
     logger.info(
         "[ROUTER] %s | structured_signals=%s | semantic_signals=%s",
         query_type.value.upper(),
         routing.structured_signals,
         routing.semantic_signals,
     )
-    
-    from structured_query.repository import is_variable_available
-    from schema.variables import VARIABLE_LABELS, DEFAULT_VARIABLE
     
     if query_type in (QueryType.STRUCTURED, QueryType.HYBRID) and requested_variable != DEFAULT_VARIABLE:
         try:
@@ -269,7 +271,6 @@ def chat(req: ChatRequest) -> ChatResponse:
     threshold = float(os.getenv("FAISS_DISTANCE_THRESHOLD", "1.5"))
     raw_rows = retrieve(req.message, top_k=5, distance_threshold=threshold, parsed_query=parsed, variable=requested_variable)
     
-    from retrieval.merger import merge_results
     rows = merge_results(pd.DataFrame(), raw_rows)
     
     # Calculate confidence based on whether we found relevant rows
@@ -282,7 +283,6 @@ def chat(req: ChatRequest) -> ChatResponse:
         float_ids = []
         viz_type, viz_data, chart_title, chart_description = None, None, None, None
     else:
-        from schema.variables import has_variable_data, VARIABLE_LABELS
         if requested_variable != DEFAULT_VARIABLE and not has_variable_data(rows, requested_variable):
             var_label = VARIABLE_LABELS.get(requested_variable, requested_variable)
             return ChatResponse(
