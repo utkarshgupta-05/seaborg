@@ -3,21 +3,13 @@ from pathlib import Path
 
 import pandas as pd
 from dotenv import load_dotenv
-from sqlalchemy import create_engine
 import logging
 
 logger = logging.getLogger(__name__)
 
-
 load_dotenv()
 
-
-def _get_engine():
-    """Creates a SQLAlchemy engine from DATABASE_URL."""
-    database_url = os.getenv("DATABASE_URL")
-    if not database_url:
-        raise ValueError("DATABASE_URL is not set in environment/.env.")
-    return create_engine(database_url, future=True)
+from api.database import get_engine
 
 
 from sqlalchemy.dialects.postgresql import insert
@@ -39,7 +31,7 @@ def save_to_postgres(df: pd.DataFrame) -> None:
         logger.info("Loaded 0 rows into PostgreSQL (empty DataFrame).")
         return
 
-    engine = _get_engine()
+    engine = get_engine()
     
     def insert_on_conflict_nothing(table, conn, keys, data_iter):
         data = [dict(zip(keys, row)) for row in data_iter]
@@ -69,7 +61,7 @@ def export_parquet_snapshot() -> None:
     Side effects:
         Overwrites Parquet file at PARQUET_PATH and prints row count written.
     """
-    engine = _get_engine()
+    engine = get_engine()
     
     # Select exactly the columns needed for Parquet schema
     sql = "SELECT float_id, date, latitude, longitude, depth_m, temp_c, salinity, oxygen, chlorophyll, nitrate FROM argo_profiles"
