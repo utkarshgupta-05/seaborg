@@ -44,6 +44,14 @@ def is_variable_available(variable: str) -> bool:
     return is_avail
 
 
+def clear_availability_cache() -> None:
+    """
+    Clears the variable availability cache. 
+    Should be called after a new ingestion run that might add new variables.
+    """
+    _availability_cache.clear()
+
+
 def query_with_filters(
     *,
     depth_min: Optional[float] = None,

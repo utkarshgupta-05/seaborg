@@ -6,6 +6,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from ingestion import db_loader, parser, qc_filter
+from structured_query.repository import clear_availability_cache
 
 
 def main() -> None:
@@ -62,6 +63,7 @@ def main() -> None:
     if not has_errors:
         print("Exporting Parquet snapshot...")
         db_loader.export_parquet_snapshot()
+        clear_availability_cache()
     else:
         print("Skipping Parquet export due to processing errors.")
 
