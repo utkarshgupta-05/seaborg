@@ -6,12 +6,13 @@ from fastapi import APIRouter, Query
 from sqlalchemy import text
 
 from api.database import get_engine
+from api.models import FloatListResponse, DatasetStats
 
 
 router = APIRouter()
 
 
-@router.get("/floats")
+@router.get("/floats", response_model=FloatListResponse)
 def list_floats(
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
@@ -62,7 +63,7 @@ def list_floats(
     }
 
 
-@router.get("/float/{float_id}")
+@router.get("/float/{float_id}", response_model=list[dict])
 def get_float(
     float_id: str,
     start_date: Optional[str] = Query(default=None),
@@ -116,7 +117,7 @@ def get_float(
     return [dict(r._mapping) for r in rows]
 
 
-@router.get("/stats")
+@router.get("/stats", response_model=DatasetStats)
 def get_stats():
     """
     Returns aggregate statistics for the full dataset.

@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Literal
 from pydantic import BaseModel
 
@@ -33,3 +34,32 @@ class ExportRequest(BaseModel):
     format: Literal["csv", "netcdf"]
     start_date: str | None = None
     end_date: str | None = None
+
+
+class FloatSummary(BaseModel):
+    float_id: str
+    first_seen: datetime | None = None
+    last_seen: datetime | None = None
+    lat_min: float | None = None
+    lat_max: float | None = None
+    lon_min: float | None = None
+    lon_max: float | None = None
+    record_count: int
+
+
+class FloatListResponse(BaseModel):
+    total: int
+    page: int
+    page_size: int
+    floats: list[FloatSummary]
+
+
+class DatasetStats(BaseModel):
+    total_rows: int
+    earliest_date: datetime | None = None
+    latest_date: datetime | None = None
+    lat_min: float | None = None
+    lat_max: float | None = None
+    lon_min: float | None = None
+    lon_max: float | None = None
+    unique_floats: int
