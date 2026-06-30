@@ -7,7 +7,7 @@ import { ChartPanel } from './components/ChartPanel';
 import { useChat } from './hooks/useChat';
 
 function App() {
-  const { response, isLoading, error, sendMessage, clearResponse, isBackendConnected } = useChat();
+  const { response, messages, isLoading, error, sendMessage, clearResponse, isBackendConnected } = useChat();
   const [newQueryAdded, setNewQueryAdded] = useState<string | null>(null);
 
   const handleSend = async (message: string) => {
@@ -50,7 +50,7 @@ function App() {
           )}
 
           <div className="panels-container">
-            <AnswerPanel response={response} isLoading={isLoading} />
+            <AnswerPanel messages={messages} isLoading={isLoading} />
             <ChartPanel response={response} isLoading={isLoading} />
           </div>
 

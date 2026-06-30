@@ -31,10 +31,10 @@ export const checkHealth = async (): Promise<boolean> => {
   }
 };
 
-export const sendMessage = async (message: string): Promise<ChatResponse> => {
+export const sendMessage = async (message: string, sessionId: string): Promise<ChatResponse> => {
   const response = await apiClient.post<ChatResponse>("/api/chat", {
     message,
-    session_id: crypto.randomUUID(),
+    session_id: sessionId,
   });
   return response.data;
 };

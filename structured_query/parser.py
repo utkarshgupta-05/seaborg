@@ -25,6 +25,8 @@ class ParsedQuery:
     lon_min: Optional[float] = None
     lon_max: Optional[float] = None
     variable: Optional[str] = None
+    value_min: Optional[float] = None
+    value_max: Optional[float] = None
     date_min: Optional[date] = None
     date_max: Optional[date] = None
     metadata_filters: dict[str, str] = field(default_factory=dict)
@@ -35,7 +37,8 @@ class ParsedQuery:
             self.depth_min, self.depth_max,
             self.lat_min, self.lat_max,
             self.lon_min, self.lon_max,
-            self.date_min, self.date_max
+            self.date_min, self.date_max,
+            self.value_min, self.value_max
         ))
 
 
@@ -114,6 +117,34 @@ def _extract_date(question: str) -> tuple[Optional[date], Optional[date]]:
     return None, None
 
 
+def _extract_value(question: str, variable: str) -> tuple[Optional[float], Optional[float]]:
+    """
+    Parses generic value constraints (e.g., 'salinity above 35').
+    """
+    q = question.lower()
+    
+    # Use negative lookahead to ensure the number is NOT followed by 'm' or 'meters'
+    # Also add (?!\.?\d) to prevent the regex engine from backtracking and partially matching a number (e.g. matching "1" from "10m")
+    unit_neg = r"(?!\.?\d)(?!\s*(?:m|meters|metres)\b)"
+    
+    # between X and Y
+    m = re.search(rf"\bbetween\s+(\d+(?:\.\d+)?)\s+(?:and|to)\s+(\d+(?:\.\d+)?){unit_neg}", q)
+    if m:
+        return float(m.group(1)), float(m.group(2))
+
+    # above / greater than X
+    m = re.search(rf"\b(?:above|greater than|>)\s+(\d+(?:\.\d+)?){unit_neg}", q)
+    if m:
+        return float(m.group(1)), None
+
+    # below / less than X
+    m = re.search(rf"\b(?:below|less than|<)\s+(\d+(?:\.\d+)?){unit_neg}", q)
+    if m:
+        return None, float(m.group(1))
+
+    return None, None
+
+
 def parse_query(question: str) -> ParsedQuery:
     """
     Parses a natural language question into a ParsedQuery containing
@@ -125,6 +156,16 @@ def parse_query(question: str) -> ParsedQuery:
     parsed.variable = detect_variable(question)
     if parsed.variable:
         logger.info("[PARSER] Extracted variable: %s", parsed.variable)
+        
+        # Parse value range if variable exists
+        v_min, v_max = _extract_value(question, parsed.variable)
+        if v_min is not None or v_max is not None:
+            parsed.value_min = v_min
+            parsed.value_max = v_max
+            lo = f"{v_min}" if v_min is not None else "0"
+            hi = f"{v_max}" if v_max is not None else "∞"
+            parsed.metadata_filters["value"] = f"{lo}–{hi}"
+            logger.info("[PARSER] Extracted value range: %s–%s", lo, hi)
 
     # -- Parse Depth --
     d_min, d_max = _extract_depth(question)
@@ -191,8 +232,13 @@ def to_display_sql(parsed: ParsedQuery) -> str:
     if parsed.date_max is not None:
         conditions.append(f"date <= '{parsed.date_max.isoformat()}'")
     
-    where_clause = f"WHERE {' AND '.join(conditions)}" if conditions else "WHERE 1=1"
-    
     variable = parsed.variable if parsed.variable else "temp_c"
+    
+    if parsed.value_min is not None:
+        conditions.append(f"{variable} >= {parsed.value_min}")
+    if parsed.value_max is not None:
+        conditions.append(f"{variable} <= {parsed.value_max}")
+    
+    where_clause = f"WHERE {' AND '.join(conditions)}" if conditions else "WHERE 1=1"
     
     return f"SELECT float_id, date, latitude, longitude, depth_m, {variable}\nFROM argo_profiles\n{where_clause}"

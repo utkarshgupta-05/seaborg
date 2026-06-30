@@ -11,7 +11,7 @@ load_dotenv()
 
 from structured_query.parser import parse_query, to_display_sql
 
-def answer_query(question: str, context_rows: pd.DataFrame, variable: str = "temp_c") -> tuple[str, str]:
+def answer_query(question: str, context_rows: pd.DataFrame, variable: str = "temp_c", history: list = None) -> tuple[str, str]:
     """
     Runs the full RAG + LLM call and returns a strictly data-grounded answer.
 
@@ -36,9 +36,12 @@ def answer_query(question: str, context_rows: pd.DataFrame, variable: str = "tem
     client = Groq(api_key=os.getenv("GROQ_API_KEY"))
     model = os.getenv("LLM_MODEL", "llama-3.1-8b-instant")
     prompt = build_prompt(question, context_rows, variable)
+    messages = history.copy() if history else []
+    messages.append({"role": "user", "content": prompt})
+
     response = client.chat.completions.create(
         model=model,
-        messages=[{"role": "user", "content": prompt}],
+        messages=messages,
         temperature=0.1,
     )
     answer = response.choices[0].message.content.strip()

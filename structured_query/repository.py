@@ -62,6 +62,9 @@ def query_with_filters(
     lon_max: Optional[float] = None,
     date_min: Optional[date] = None,
     date_max: Optional[date] = None,
+    variable: Optional[str] = None,
+    value_min: Optional[float] = None,
+    value_max: Optional[float] = None,
     limit: int = 500,
 ) -> pd.DataFrame:
     """
@@ -85,7 +88,7 @@ def query_with_filters(
     # Guard: require at least one filter to avoid accidental full scans
     has_filter = any(
         v is not None
-        for v in (depth_min, depth_max, lat_min, lat_max, lon_min, lon_max, date_min, date_max)
+        for v in (depth_min, depth_max, lat_min, lat_max, lon_min, lon_max, date_min, date_max, value_min, value_max)
     )
     if not has_filter:
         logger.warning("query_with_filters called with no filters; returning empty.")
@@ -119,6 +122,14 @@ def query_with_filters(
         conditions.append("date <= :date_max")
         params["date_max"] = date_max
 
+    if variable and variable in VARIABLE_REGISTRY:
+        if value_min is not None:
+            conditions.append(f"{variable} >= :value_min")
+            params["value_min"] = value_min
+        if value_max is not None:
+            conditions.append(f"{variable} <= :value_max")
+            params["value_max"] = value_max
+
     where = " AND ".join(conditions)
     sql = (
         f"SELECT float_id, date, latitude, longitude, depth_m, temp_c, salinity, oxygen, chlorophyll, nitrate "
@@ -145,6 +156,9 @@ def aggregate_stats(
     lon_max: Optional[float] = None,
     date_min: Optional[date] = None,
     date_max: Optional[date] = None,
+    variable: Optional[str] = None,
+    value_min: Optional[float] = None,
+    value_max: Optional[float] = None,
 ) -> dict:
     """
     Returns aggregate statistics for rows matching the given filters.
@@ -190,6 +204,14 @@ def aggregate_stats(
         conditions.append("date <= :date_max")
         params["date_max"] = date_max
 
+    if variable and variable in VARIABLE_REGISTRY:
+        if value_min is not None:
+            conditions.append(f"{variable} >= :value_min")
+            params["value_min"] = value_min
+        if value_max is not None:
+            conditions.append(f"{variable} <= :value_max")
+            params["value_max"] = value_max
+
     where_clause = f"WHERE {' AND '.join(conditions)}" if conditions else ""
     sql = (
         f"SELECT "
@@ -230,6 +252,8 @@ def aggregate_stats_for_variable(
     lon_max: Optional[float] = None,
     date_min: Optional[date] = None,
     date_max: Optional[date] = None,
+    value_min: Optional[float] = None,
+    value_max: Optional[float] = None,
 ) -> dict:
     """
     Returns aggregate statistics for a specific requested variable, alongside
@@ -266,6 +290,13 @@ def aggregate_stats_for_variable(
     if date_max is not None:
         conditions.append("date <= :date_max")
         params["date_max"] = date_max
+
+    if value_min is not None:
+        conditions.append(f"{variable} >= :value_min")
+        params["value_min"] = value_min
+    if value_max is not None:
+        conditions.append(f"{variable} <= :value_max")
+        params["value_max"] = value_max
 
     where_clause = f"WHERE {' AND '.join(conditions)}" if conditions else ""
     sql = (

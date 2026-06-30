@@ -74,6 +74,9 @@ def answer(question: str) -> dict:
         lon_max=parsed.lon_max,
         date_min=parsed.date_min,
         date_max=parsed.date_max,
+        variable=requested_variable,
+        value_min=parsed.value_min,
+        value_max=parsed.value_max,
     )
 
     count = len(rows_df)
@@ -92,6 +95,8 @@ def answer(question: str) -> dict:
         lon_max=parsed.lon_max,
         date_min=parsed.date_min,
         date_max=parsed.date_max,
+        value_min=parsed.value_min,
+        value_max=parsed.value_max,
     )
 
     summary = _build_summary(count, stats, requested_variable)

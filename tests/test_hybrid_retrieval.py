@@ -156,4 +156,5 @@ def test_chat_endpoint_hybrid_route(mock_route, mock_hybrid):
     assert response.metadata["query_type"] == "hybrid"
     assert "routing_signals" in response.metadata
     
-    mock_hybrid.assert_called_once_with("average temperature and explain")
+    from unittest.mock import ANY
+    mock_hybrid.assert_called_once_with("average temperature and explain", history=ANY)

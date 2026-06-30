@@ -32,6 +32,9 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
+# In-memory session store: session_id -> list of {"role": str, "content": str}
+_sessions = {}
+
 
 def detect_chart_type(message: str) -> str:
     """
@@ -172,8 +175,13 @@ def chat(req: ChatRequest) -> ChatResponse:
       STRUCTURED → PostgreSQL structured engine
       SEMANTIC   → FAISS retriever + LLM
       HYBRID     → Both paths run; structured data first, LLM narration second
-                   (Full merge wired in Phase 9 via hybrid_service)
     """
+    session_id = req.session_id or "default"
+    if session_id not in _sessions:
+        _sessions[session_id] = []
+    
+    history = _sessions[session_id]
+    
     parsed = parse_query(req.message)
     requested_variable = parsed.variable or "temp_c"
 
@@ -218,7 +226,7 @@ def chat(req: ChatRequest) -> ChatResponse:
             req.message, rows_df, float_ids, requested_variable
         )
         
-        return ChatResponse(
+        response_obj = ChatResponse(
             answer=answer,
             chart_type=chart_type,
             float_ids=float_ids,
@@ -230,13 +238,17 @@ def chat(req: ChatRequest) -> ChatResponse:
             chart_title=chart_title,
             chart_description=chart_description
         )
+        
+        history.append({"role": "user", "content": req.message})
+        history.append({"role": "assistant", "content": answer})
+        return response_obj
 
     # ── HYBRID PATH ─────────────────────────────────────────────────────────
     # Phase 9: True Context-Fusion Architecture
     if query_type == QueryType.HYBRID:
         # hybrid_service handles the structured + semantic retrieval, row deduplication,
         # grounded prompt construction, and LLM narration.
-        result = hybrid_answer(req.message)
+        result = hybrid_answer(req.message, history=history)
         
         answer = result["summary"]
         rows_df = result["rows"]
@@ -253,7 +265,7 @@ def chat(req: ChatRequest) -> ChatResponse:
             req.message, rows_df, float_ids, requested_variable
         )
 
-        return ChatResponse(
+        response_obj = ChatResponse(
             answer=answer,
             chart_type=chart_type,
             float_ids=float_ids,
@@ -265,6 +277,10 @@ def chat(req: ChatRequest) -> ChatResponse:
             chart_title=chart_title,
             chart_description=chart_description,
         )
+        
+        history.append({"role": "user", "content": req.message})
+        history.append({"role": "assistant", "content": answer})
+        return response_obj
 
     # ── SEMANTIC PATH (default) ──────────────────────────────────────────────
     # Filter weak matches using threshold to prevent hallucinations on irrelevant queries
@@ -294,7 +310,7 @@ def chat(req: ChatRequest) -> ChatResponse:
                 metadata={"error": "variable_unavailable", "variable": requested_variable}
             )
             
-        answer, sql = answer_query(req.message, rows, requested_variable)
+        answer, sql = answer_query(req.message, rows, requested_variable, history=history)
         chart_type = detect_chart_type(req.message)
         float_ids = _extract_float_ids(rows)
         viz_type, viz_data, chart_title, chart_description = generate_visualization_payload(
@@ -303,7 +319,7 @@ def chat(req: ChatRequest) -> ChatResponse:
 
     metadata = _attach_routing_signals({"query_type": "semantic"}, routing)
 
-    return ChatResponse(
+    response_obj = ChatResponse(
         answer=answer,
         chart_type=chart_type,
         float_ids=float_ids,
@@ -315,3 +331,7 @@ def chat(req: ChatRequest) -> ChatResponse:
         chart_title=chart_title,
         chart_description=chart_description,
     )
+    
+    history.append({"role": "user", "content": req.message})
+    history.append({"role": "assistant", "content": answer})
+    return response_obj

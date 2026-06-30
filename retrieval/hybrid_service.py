@@ -25,7 +25,7 @@ import logging
 load_dotenv()
 
 
-def hybrid_answer(question: str) -> dict:
+def hybrid_answer(question: str, history: list = None) -> dict:
     """
     Executes the true hybrid retrieval path.
 
@@ -81,9 +81,12 @@ def hybrid_answer(question: str) -> dict:
         client = Groq(api_key=os.getenv("GROQ_API_KEY"))
         model = os.getenv("LLM_MODEL", "llama-3.1-8b-instant")
         
+        messages = history.copy() if history else []
+        messages.append({"role": "user", "content": prompt})
+
         response = client.chat.completions.create(
             model=model,
-            messages=[{"role": "user", "content": prompt}],
+            messages=messages,
             temperature=0.1,
         )
         final_answer = response.choices[0].message.content.strip()
