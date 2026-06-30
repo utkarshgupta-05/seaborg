@@ -5,6 +5,15 @@ import logging
 
 from .common import empty_figure, VARIABLE_LABELS
 
+_COLOR_SCALES = {
+    "temp_c": "RdBu_r",
+    "salinity": "Viridis",
+    "chlorophyll": "YlGn",
+    "oxygen": "Blues",
+    "nitrate": "Purples",
+    "depth_m": "Viridis_r",
+}
+
 logger = logging.getLogger(__name__)
 
 def plot_float_map(df: pd.DataFrame, title: str | None = None, variable: str = "temp_c") -> go.Figure:
@@ -45,7 +54,7 @@ def plot_float_map(df: pd.DataFrame, title: str | None = None, variable: str = "
         lat="latitude",
         lon="longitude",
         color=color_col,
-        color_continuous_scale="RdBu_r",
+        color_continuous_scale=_COLOR_SCALES.get(variable, "RdBu_r"),
         title=chart_title,
         hover_data=hover_data,
         labels={variable: VARIABLE_LABELS.get(variable, variable)} if color_col else {}
