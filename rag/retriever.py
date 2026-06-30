@@ -12,7 +12,6 @@ _index = None
 _df = None
 
 _ARGO_SCHEMA_COLUMNS = [
-    "id",
     "float_id",
     "date",
     "latitude",
@@ -23,7 +22,6 @@ _ARGO_SCHEMA_COLUMNS = [
     "oxygen",
     "chlorophyll",
     "nitrate",
-    "created_at",
     "faiss_distance",
 ]
 
